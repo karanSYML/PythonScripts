@@ -5,6 +5,13 @@ from typing import Optional, List, Dict, Any
 
 G0 = 9.80665  # m/s^2
 
+# TODO
+# Add into EP budget
+# Residuals : 0.805 kg
+# Leakage : 0.110 kg
+# Overheads : 0.615 kg
+
+
 @dataclass
 class Maneuver:
     name: str
@@ -124,32 +131,33 @@ def print_report(res: Dict[str, Any], available_prop: Dict[str, float]) -> None:
 
 def main():
     # ---- From your Excel assumptions ----
-    dry_mass_kg = 161.0
+    dry_mass_kg = 144.0
 
-    # Available prop (your sheet: EP=8.0, CP=2.9)
+    # Available prop (sheet: EP=8.0, CP=2.9)
     available_prop = {
         "EP": 8.0,
         "CP": 2.9,        # we lump CP-cold and CP-hot into "CP" below for comparison
     }
 
     # Thruster properties (your sheet)
-    EP_ISP = 1200.0
-    EP_THRUST = 7.5e-3
+    EP_ISP = 1100.0
+    EP_THRUST = 15.5e-3
 
-    CP_COLD_ISP = 50.0
+    CP_COLD_ISP = 55.0
     CP_HOT_ISP = 253.0
-    CP_THRUST = 1.03  # your table uses ~1.030 N
+    CP_THRUST = 1.03  # table uses ~1.030 N
+    CP_THRUST_COLD = 14.0e-3 # table uses ~1.0N
 
-    # ---- Paste your mission-phase table here (this matches your rows) ----
+    # ---- Paste mission-phase table here (this matches rows) ----
     # NOTE: We keep CP as one "bucket" named "CP" for availability check.
     maneuvers = [
         Maneuver("EOR Injection -> subGEO", 26.00, 0.05, EP_ISP, EP_THRUST, "EP"),
-        Maneuver("Detumbling & Commissioning", 0.42, 0.05, CP_COLD_ISP, CP_THRUST, "CP"),
-        Maneuver("WoL due to Perturbations", 4.01e-03, 0.10, CP_HOT_ISP, CP_THRUST, "CP"),
-        Maneuver("WoL due to Maneuvers", 2.86, 0.30, CP_HOT_ISP, CP_THRUST, "CP"),
-        Maneuver("Acquisition and Safe Mode", 3.82, 0.05, CP_COLD_ISP, CP_THRUST, "CP"),
-        Maneuver("Far Range RdV EP (60–1 km)", 150.00, 0.30, EP_ISP, EP_THRUST, "EP"),
-        Maneuver("Far Range RdV CP (60–1 km)", 11.47, 0.30, CP_HOT_ISP, CP_THRUST, "CP"),
+        Maneuver("Detumbling & Commissioning", 0.51, 0.05, CP_COLD_ISP, CP_THRUST, "CP"),
+        Maneuver("WoL due to Perturbations", 1.01e-03, 0.10, CP_HOT_ISP, CP_THRUST, "CP"),
+        Maneuver("WoL due to Maneuvers", 2.95, 0.30, CP_HOT_ISP, CP_THRUST, "CP"),
+        Maneuver("Acquisition and Safe Mode", 4.61, 0.05, CP_COLD_ISP, CP_THRUST, "CP"),
+        Maneuver("Far Range RdV EP (60-1 km)", 150.00, 0.30, EP_ISP, EP_THRUST, "EP"),
+        Maneuver("Far Range RdV CP (60-1 km)", 11.47, 0.30, CP_HOT_ISP, CP_THRUST, "CP"),
         Maneuver("Altitude Changes (+/-300 km)", 88.00, 0.05, EP_ISP, EP_THRUST, "EP"),
         Maneuver("Station keeping NS (5 yrs)", 275.00, 0.05, EP_ISP, EP_THRUST, "EP"),
         Maneuver("Station keeping EW", 0.00, 0.05, EP_ISP, EP_THRUST, "EP"),
@@ -159,14 +167,12 @@ def main():
     res = budget_from_dry_mass(dry_mass_kg, maneuvers)
     print_report(res, available_prop)
 
-    # ---- Extract the two numbers you asked about ----
-    # These are what you'd map to your earlier script variables:
-    dv_detumble = dv_effective(maneuvers[1])
-    dv_attitude_and_safemode = dv_effective(maneuvers[4])
+    # dv_detumble = dv_effective(maneuvers[1])
+    # dv_attitude_and_safemode = dv_effective(maneuvers[4])
 
-    print("\n=== Key extracted budgets for your earlier script ===")
-    print(f"dv_detumble (Detumbling & Commissioning, with margin): {dv_detumble:.3f} m/s")
-    print(f"dv_attitude_and_safemode (Acquisition+Safe Mode, with margin): {dv_attitude_and_safemode:.3f} m/s")
+    # print("\n=== Key extracted budgets from earlier script ===")
+    # print(f"dv_detumble (Detumbling & Commissioning, with margin): {dv_detumble:.3f} m/s")
+    # print(f"dv_attitude_and_safemode (Acquisition+Safe Mode, with margin): {dv_attitude_and_safemode:.3f} m/s")
 
 if __name__ == "__main__":
     main()
