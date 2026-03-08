@@ -127,7 +127,7 @@ $ We = \rho · V^2 · R_0 / \sigma $
 
 **Galileo number** (used for low-g smooth wall damping):
 
-$ N_{GA} = (R_0 · \omega_1 )^{0.4647} / \nu_k^2 $
+$ N_{GA} = (R_0 · \omega_1 ) / ({0.4647}^2) \nu_k $
 
 
 where $\nu_k$ is the kinematic viscosity of the liquid.
@@ -187,7 +187,7 @@ $\omega_{cap}^2 = (\sigma \cdot \lambda_1^2 \cdot (\lambda_1^2 - 1)) / (\rho \cd
 
 $ \omega_1 |_{a=0} = \sqrt{[(\sigma \cdot \lambda_1^2 \cdot (\lambda_1^2 - 1)) / (\rho \cdot R_0^3) \cdot \tanh{(\lambda_1 \cdot h / R_0)}]} $
 
-This surface-tension-only frequency is typically very small — on the order of **0.01–0.1 rad/s** for typical satellite tank sizes and propellant surface tensions — consistent with the ESA observation that on-orbit slosh modes have frequencies in the range 0.01–0.1 Hz.
+This surface-tension-only frequency is typically very small, on the order of **0.01–0.1 rad/s** for typical satellite tank sizes and propellant surface tensions — consistent with the ESA observation that on-orbit slosh modes have frequencies in the range 0.01–0.1 Hz.
 
 ### 5.2 Free Surface Stability Condition
 
@@ -214,11 +214,9 @@ The low-g first-mode sloshing mass fraction is (Jang et al. 2014, Eq. 37, first-
 
 $m₁ / m_{liq} = (2 / λ₁²) · [1 / (1 + N_{BO} / (λ₁² - 1))] · \tanh{(λ₁ · h/R_0)} · I_n$
 
-
 where $I_n$ is a Bessel function integral that evaluates to approximately $2/λ₁$ for the first mode in the limit of moderate fill levels. For the simplified engineering formula, this reduces to the same form as the high-g expression but with a correction factor dependent on Bond number:
 
 $ m₁/m_{liq} ≈ (2 / (λ₁^2 · h/R_0)) · \tanh{(λ₁ · h/R_0)} · f(Bo) $
-
 
 where $f(Bo) → 1$ for $Bo >> 1$ (recovering Abramson) and $f(Bo) < 1$ for low $Bo$ (surface tension reduces the effective sloshing mass fraction).
 
@@ -244,11 +242,9 @@ $ζ₁ = 0.83 · N_{GA}^{-1/2} \left( 1 + 8.2(Bo)^{-3/5} \right)$ ,   for $Bo �
 
 $ζ₁ = 0.83 · N_{GA}^{-1/2} + 0.096 · {Bo}^{-1/2}$,    otherwise
 
-
 where the Galileo number is:
 
 $N_{GA} = (R_0 · ω₁) / {0.4647}^2 \nu_k$
-
 
 and $\nu_k$ is the kinematic viscosity of the propellant $[m^2/s]$.
 

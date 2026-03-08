@@ -38,12 +38,12 @@ warnings.filterwarnings('ignore')
 # =============================================================================
 
 # --- Tank geometry ---
-R0      = 0.35        # Tank inner radius [m]
+R0      = 0.4        # Tank inner radius [m]
 dome_d  = 0.10        # Elliptical dome depth [m] (set 0 for flat bottom)
-h_fill  = 0.40        # Propellant fill height [m]
+h_fill  = 0.50        # Propellant fill height [m]
 
 # --- Propellant properties ---
-rho     = 880.0       # Liquid density [kg/m³]  (hydrazine-like)
+rho     = 200 #880.0       # Liquid density [kg/m³]  (hydrazine-like)
 sigma   = 0.050       # Surface tension [N/m]
 nu_k    = 1.0e-6      # Kinematic viscosity [m²/s]
 
@@ -57,11 +57,11 @@ a_eff   = 0.05        # Effective axial acceleration [m/s²]
 
 # --- Spacecraft ---
 I_sc    = 500.0       # Pitch inertia [kg.m²]
-z_tank_centre = 1.0   # Tank centre axial position from CoM [m]
+z_tank_centre = 0.5   # Tank centre axial position from CoM [m]
 
 # --- Control ---
-Kp = 50.0             # Attitude proportional gain [N.m/rad]
-Kd = 200.0            # Attitude derivative gain [N.m/(rad/s)]
+Kp = 2.0             # Attitude proportional gain [N.m/rad]
+Kd = 18.0            # Attitude derivative gain [N.m/(rad/s)]
 
 # --- Simulation ---
 t_end   = 300.0       # Duration [s]

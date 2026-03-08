@@ -1,0 +1,126 @@
+{
+  "platform_name": "Platform_A",
+  "wet_mass_kg": 3500.0,
+  "dry_mass_kg": 1200.0,
+  "xenon_loaded_kg": 900.0,
+  "xenon_residual_fraction": 0.01,
+  "n2o_loaded_kg": 280.0,
+  "c3h6_loaded_kg": 40.0,
+  "rcs_residual_fraction": 0.02,
+  "phases": [
+    {
+      "name": "EOR",
+      "primary_propulsion": "BOTH",
+      "delta_v": 1500.0,
+      "acs_delta_v": 8.0,
+      "duration_days": 90.0,
+      "thruster_arm_angle_deg": 0.0,
+      "ep": {
+        "isp_bol": 1800.0,
+        "isp_eol": 1700.0,
+        "thrust_mn": 200.0,
+        "duty_cycle": 0.55,
+        "warmup_xenon_kg": 0.002,
+        "warmup_sessions": 90
+      },
+      "rcs": {
+        "isp_bol": 310.0,
+        "isp_eol": 295.0,
+        "mixture_ratio": 7.0,
+        "margin_performance": 0.03,
+        "margin_execution": 0.05,
+        "margin_operational": 0.05
+      },
+      "notes": "EP primary delta-V. RCS ACS only. Duty cycle limited by eclipses and solar power."
+    },
+    {
+      "name": "Far_Range_Rendezvous",
+      "primary_propulsion": "RCS",
+      "delta_v": 25.0,
+      "acs_delta_v": 3.0,
+      "duration_days": 5.0,
+      "rcs": {
+        "isp_bol": 310.0,
+        "isp_eol": 295.0,
+        "mixture_ratio": 7.0,
+        "margin_performance": 0.03,
+        "margin_execution": 0.05,
+        "margin_operational": 0.05
+      },
+      "notes": "RCS only. Includes hold point station-keeping delta-V."
+    },
+    {
+      "name": "Near_Range_Rendezvous",
+      "primary_propulsion": "RCS",
+      "delta_v": 10.0,
+      "acs_delta_v": 2.0,
+      "duration_days": 1.0,
+      "rcs": {
+        "isp_bol": 310.0,
+        "isp_eol": 295.0,
+        "mixture_ratio": 7.0,
+        "margin_performance": 0.03,
+        "margin_execution": 0.05,
+        "margin_operational": 0.05
+      },
+      "notes": "Fine proximity manoeuvres. MIB-limited pulsing."
+    },
+    {
+      "name": "Docking",
+      "primary_propulsion": "RCS",
+      "delta_v": 5.0,
+      "acs_delta_v": 1.5,
+      "duration_days": 0.5,
+      "rcs": {
+        "isp_bol": 310.0,
+        "isp_eol": 295.0,
+        "mixture_ratio": 7.0,
+        "margin_performance": 0.03,
+        "margin_execution": 0.05,
+        "margin_operational": 0.05
+      },
+      "notes": "Final approach and capture. Includes abort reserve allocation."
+    },
+    {
+      "name": "Post_Docking_SK",
+      "primary_propulsion": "BOTH",
+      "delta_v": 500.0,
+      "acs_delta_v": 15.0,
+      "duration_days": 1825.0,
+      "thruster_arm_angle_deg": 8.0,
+      "ep": {
+        "isp_bol": 1750.0,
+        "isp_eol": 1600.0,
+        "thrust_mn": 180.0,
+        "duty_cycle": 0.85,
+        "warmup_xenon_kg": 0.002,
+        "warmup_sessions": 365
+      },
+      "rcs": {
+        "isp_bol": 310.0,
+        "isp_eol": 295.0,
+        "mixture_ratio": 7.0,
+        "margin_performance": 0.03,
+        "margin_execution": 0.05,
+        "margin_operational": 0.05
+      },
+      "notes": "Stack SK. EP through thruster arm — cosine loss applied."
+    },
+    {
+      "name": "CAM_Reserve",
+      "primary_propulsion": "RCS",
+      "delta_v": 30.0,
+      "acs_delta_v": 2.0,
+      "duration_days": 0.0,
+      "rcs": {
+        "isp_bol": 310.0,
+        "isp_eol": 295.0,
+        "mixture_ratio": 7.0,
+        "margin_performance": 0.03,
+        "margin_execution": 0.10,
+        "margin_operational": 0.10
+      },
+      "notes": "Protected CAM reserve. Not consumed by nominal ops."
+    }
+  ]
+}
