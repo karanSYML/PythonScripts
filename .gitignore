@@ -1,3 +1,7 @@
 .vscode
 *.png
 refprop/REFPROP-cmake
+**/*.png
+**/*.jpg
+**/*.csv
+*.csv
