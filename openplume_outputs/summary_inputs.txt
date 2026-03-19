@@ -1,0 +1,55 @@
+=================================================================
+  OpenPlume Custom Method — Input Parameter Summary
+  SPT-100 Empirical Model (Kim 1999) scaled to BHT-350
+=================================================================
+
+THRUSTER: SPT-100 (Reference)
+---------------------------------------------
+  Ion type                     : Xe (Xenon)
+  Discharge voltage            : 300.0 V
+  Discharge current            : 4.50 A
+  Beam current (I_b)           : 4.050 A
+  Mean ion energy              : 264.0 eV
+  Ion energy spread (1-sigma)  : 38.0 eV
+  Beam divergence half-angle   : 40.0 deg
+  Cosine-power exponent n      : 3.50
+  CEX current fraction         : 15.0 %
+  Doubly charged fraction a2   : 8.0 %
+  Triply charged fraction a3   : 2.0 %
+  Reference distance           : 1.00 m
+
+  Angular distribution model:
+    j(theta) = j0 * [ 0.85*cos^3.5(theta)
+                     + 0.15*cos^3.5(theta/2) ]
+
+  On-axis current density j0 at 1.00 m:
+    j0 = 2.2877 A/m^2
+
+THRUSTER: BHT-350 (Scaled from SPT-100)
+---------------------------------------------
+  Ion type                     : Xe (Xenon)
+  Discharge voltage            : 300.0 V
+  Discharge current            : 1.00 A
+  Beam current (I_b)           : 0.900 A
+  Mean ion energy              : 264.0 eV
+  Ion energy spread (1-sigma)  : 38.0 eV
+  Beam divergence half-angle   : 40.0 deg
+  Cosine-power exponent n      : 3.50
+  CEX current fraction         : 15.0 %
+  Doubly charged fraction a2   : 8.0 %
+  Triply charged fraction a3   : 2.0 %
+  Reference distance           : 0.77 m
+
+  Angular distribution model:
+    j(theta) = j0 * [ 0.85*cos^3.5(theta)
+                     + 0.15*cos^3.5(theta/2) ]
+
+  On-axis current density j0 at 0.77 m:
+    j0 = 0.8574 A/m^2
+
+=================================================================
+References:
+  Kim (1999) PhD Thesis, Univ. Michigan (PEPL)
+  Parks & Katz (1979) JPL Technical Memo 33-777
+  Randolph et al. (1993) IEPC-93-093
+  Manzella et al. (1997) AIAA-1997-3054

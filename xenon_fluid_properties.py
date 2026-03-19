@@ -1,13 +1,11 @@
 """
 Diphasic Fluid Properties for Slosh Analysis
-Propellants: N2O (nitrous oxide) and C3H6 (propylene)
-Temperature range: -5 to +40 C (saturation conditions)
+Plasma Propellant: Xenon
+Temperature range: -25 to +40 C (saturation conditions)
 
 Notes:
-  - N2O critical point: 36.4 C (309.52 K). Saturation properties are
-    undefined above this. The script automatically caps N2O at Tc.
-  - CoolProp NitrousOxide EOS has no viscosity model. Set BACKEND="REFPROP"
-    to get N2O viscosity via your REFPROP installation.
+  - Xe critical point: 36.4 C (309.52 K). Saturation properties are
+    undefined above this. The script automatically caps Xe at Tc.
 """
 
 import os
@@ -31,14 +29,14 @@ BACKEND = "REFPROP"   # "CoolProp" or "REFPROP"
                         # N2O viscosity only available with REFPROP backend
 
 if BACKEND == "REFPROP":
-    FLUIDS = {"N2O": "REFPROP::N2O", "C3H6": "REFPROP::PROPYLEN"}
+    FLUIDS = {"Xe": "REFPROP::XENON"}
 else:
-    FLUIDS = {"N2O": "NitrousOxide", "C3H6": "Propylene"}
+    FLUIDS = {"Xe": "Xenon"}
 
-T_MIN_C = -5.0
-T_MAX_C = 40.0
+T_MIN_C = -25.0
+T_MAX_C = 25.0
 N_POINTS = 91            # ~0.5 C steps
-N2O_T_CRIT_C = 36.4     # N2O critical temperature [C]
+XE_T_CRIT_C = 16.58     # Xe critical temperature [C]
 
 TANK_RADIUS_M = 0.15    # [m] update to your actual tank radius
 G_LEVELS = {
@@ -102,11 +100,11 @@ for fluid_key, fluid_name in FLUIDS.items():
     rows = []
     n_supercrit = 0
 
-    # Cap N2O below its critical point
-    t_max = (N2O_T_CRIT_C - 0.5) if fluid_key == "N2O" else T_MAX_C
+    # Cap Xe below its critical point
+    t_max = (XE_T_CRIT_C - 0.5) if fluid_key == "XE" else T_MAX_C
 
     print(f"\nComputing {fluid_key} ({BACKEND})"
-          + (f"  [capped at {t_max:.1f} C — critical point]" if fluid_key == "N2O" else ""))
+          + (f"  [capped at {t_max:.1f} C — critical point]" if fluid_key == "XE" else ""))
 
     for T_C, T_K in zip(T_C_arr, T_K_arr):
         if T_C > t_max:
@@ -147,7 +145,7 @@ for fluid_key, df in results.items():
 # -- Export CSVs --------------------------------------------------------------
 
 for fluid_key, df in results.items():
-    fname = f"slosh_properties_{fluid_key}.csv"
+    fname = f"xe_slosh_properties_{fluid_key}.csv"
     df.to_csv(fname, index=False)
     print(f"Exported: {fname}")
 
@@ -155,13 +153,13 @@ for fluid_key, df in results.items():
 
 fig = plt.figure(figsize=(16, 12))
 fig.suptitle(
-    "Diphasic Properties for Slosh Analysis - N2O and C3H6 at Saturation\n"
-    f"(N2O capped at {N2O_T_CRIT_C} C | backend - {BACKEND})",
+    "Diphasic Properties for Slosh Analysis - Xenon at Saturation\n"
+    f"(Xe capped at {XE_T_CRIT_C} C | backend - {BACKEND})",
     fontsize=11, fontweight="bold"
 )
 gs = gridspec.GridSpec(3, 2, figure=fig, hspace=0.48, wspace=0.35)
-COLORS = {"N2O": "#1f77b4", "C3H6": "#d62728"}
-LS     = {"N2O": "-",       "C3H6": "--"}
+COLORS = {"Xe": "#1f77b4"}
+LS     = {"Xe": "-"}
 
 def fluid_plot(ax, y_col, ylabel, title, scale=1.0):
     for fk, df in results.items():
@@ -209,6 +207,6 @@ for idx, (fk, df) in enumerate(results.items()):
     ax.legend(fontsize=7)
     ax.grid(True, which="both", alpha=0.3)
 
-plt.savefig("slosh_fluid_properties.png", dpi=150, bbox_inches="tight")
+plt.savefig("xe_slosh_fluid_properties.png", dpi=150, bbox_inches="tight")
 plt.show()
 print("\nPlot saved: slosh_fluid_properties.png")
