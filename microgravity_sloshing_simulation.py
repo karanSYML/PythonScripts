@@ -43,7 +43,7 @@ dome_d  = 0.10        # Elliptical dome depth [m] (set 0 for flat bottom)
 h_fill  = 0.50        # Propellant fill height [m]
 
 # --- Propellant properties ---
-rho     = 200 #880.0       # Liquid density [kg/m³]  (hydrazine-like)
+rho     = 200         # Liquid density [kg/m³]
 sigma   = 0.050       # Surface tension [N/m]
 nu_k    = 1.0e-6      # Kinematic viscosity [m²/s]
 
