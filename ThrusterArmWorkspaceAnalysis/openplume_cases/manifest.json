@@ -1,0 +1,1861 @@
+{
+  "n_cases": 64,
+  "cases": [
+    {
+      "case_id": 0,
+      "case_name": "case_0000",
+      "status": "CAUTION",
+      "max_erosion_um": 2.6855,
+      "erosion_fraction": 0.10742,
+      "thruster_pos_m": [
+        2.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.88593,
+        0.0,
+        0.46381
+      ],
+      "plume_direction": [
+        0.88593,
+        -0.0,
+        -0.46381
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0000.geo",
+      "json_file": "case_0000.json"
+    },
+    {
+      "case_id": 1,
+      "case_name": "case_0001",
+      "status": "CAUTION",
+      "max_erosion_um": 3.7596,
+      "erosion_fraction": 0.15039,
+      "thruster_pos_m": [
+        2.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.88593,
+        0.0,
+        0.46381
+      ],
+      "plume_direction": [
+        0.88593,
+        -0.0,
+        -0.46381
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0001.geo",
+      "json_file": "case_0001.json"
+    },
+    {
+      "case_id": 2,
+      "case_name": "case_0002",
+      "status": "CAUTION",
+      "max_erosion_um": 3.3963,
+      "erosion_fraction": 0.13585,
+      "thruster_pos_m": [
+        2.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.88593,
+        0.0,
+        0.46381
+      ],
+      "plume_direction": [
+        0.88593,
+        -0.0,
+        -0.46381
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0002.geo",
+      "json_file": "case_0002.json"
+    },
+    {
+      "case_id": 3,
+      "case_name": "case_0003",
+      "status": "CAUTION",
+      "max_erosion_um": 4.7548,
+      "erosion_fraction": 0.19019,
+      "thruster_pos_m": [
+        2.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.88593,
+        0.0,
+        0.46381
+      ],
+      "plume_direction": [
+        0.88593,
+        -0.0,
+        -0.46381
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0003.geo",
+      "json_file": "case_0003.json"
+    },
+    {
+      "case_id": 4,
+      "case_name": "case_0004",
+      "status": "CAUTION",
+      "max_erosion_um": 3.5154,
+      "erosion_fraction": 0.14062,
+      "thruster_pos_m": [
+        2.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.88593,
+        0.0,
+        0.46381
+      ],
+      "plume_direction": [
+        0.88593,
+        -0.0,
+        -0.46381
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0004.geo",
+      "json_file": "case_0004.json"
+    },
+    {
+      "case_id": 5,
+      "case_name": "case_0005",
+      "status": "CAUTION",
+      "max_erosion_um": 4.9216,
+      "erosion_fraction": 0.19687,
+      "thruster_pos_m": [
+        2.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.88593,
+        0.0,
+        0.46381
+      ],
+      "plume_direction": [
+        0.88593,
+        -0.0,
+        -0.46381
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0005.geo",
+      "json_file": "case_0005.json"
+    },
+    {
+      "case_id": 6,
+      "case_name": "case_0006",
+      "status": "CAUTION",
+      "max_erosion_um": 2.5135,
+      "erosion_fraction": 0.10054,
+      "thruster_pos_m": [
+        3.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.91657,
+        0.0,
+        0.39988
+      ],
+      "plume_direction": [
+        0.91657,
+        -0.0,
+        -0.39988
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0006.geo",
+      "json_file": "case_0006.json"
+    },
+    {
+      "case_id": 7,
+      "case_name": "case_0007",
+      "status": "CAUTION",
+      "max_erosion_um": 3.5189,
+      "erosion_fraction": 0.14076,
+      "thruster_pos_m": [
+        3.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.91657,
+        0.0,
+        0.39988
+      ],
+      "plume_direction": [
+        0.91657,
+        -0.0,
+        -0.39988
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0007.geo",
+      "json_file": "case_0007.json"
+    },
+    {
+      "case_id": 8,
+      "case_name": "case_0008",
+      "status": "CAUTION",
+      "max_erosion_um": 5.027,
+      "erosion_fraction": 0.20108,
+      "thruster_pos_m": [
+        3.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.91657,
+        0.0,
+        0.39988
+      ],
+      "plume_direction": [
+        0.91657,
+        -0.0,
+        -0.39988
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0008.geo",
+      "json_file": "case_0008.json"
+    },
+    {
+      "case_id": 9,
+      "case_name": "case_0009",
+      "status": "CAUTION",
+      "max_erosion_um": 7.0378,
+      "erosion_fraction": 0.28151,
+      "thruster_pos_m": [
+        3.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.91657,
+        0.0,
+        0.39988
+      ],
+      "plume_direction": [
+        0.91657,
+        -0.0,
+        -0.39988
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0009.geo",
+      "json_file": "case_0009.json"
+    },
+    {
+      "case_id": 10,
+      "case_name": "case_0010",
+      "status": "CAUTION",
+      "max_erosion_um": 3.1427,
+      "erosion_fraction": 0.12571,
+      "thruster_pos_m": [
+        3.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.91657,
+        0.0,
+        0.39988
+      ],
+      "plume_direction": [
+        0.91657,
+        -0.0,
+        -0.39988
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0010.geo",
+      "json_file": "case_0010.json"
+    },
+    {
+      "case_id": 11,
+      "case_name": "case_0011",
+      "status": "CAUTION",
+      "max_erosion_um": 4.3998,
+      "erosion_fraction": 0.17599,
+      "thruster_pos_m": [
+        3.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.91657,
+        0.0,
+        0.39988
+      ],
+      "plume_direction": [
+        0.91657,
+        -0.0,
+        -0.39988
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0011.geo",
+      "json_file": "case_0011.json"
+    },
+    {
+      "case_id": 12,
+      "case_name": "case_0012",
+      "status": "CAUTION",
+      "max_erosion_um": 6.2854,
+      "erosion_fraction": 0.25142,
+      "thruster_pos_m": [
+        3.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.91657,
+        0.0,
+        0.39988
+      ],
+      "plume_direction": [
+        0.91657,
+        -0.0,
+        -0.39988
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0012.geo",
+      "json_file": "case_0012.json"
+    },
+    {
+      "case_id": 13,
+      "case_name": "case_0013",
+      "status": "CAUTION",
+      "max_erosion_um": 8.7996,
+      "erosion_fraction": 0.35198,
+      "thruster_pos_m": [
+        3.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.91657,
+        0.0,
+        0.39988
+      ],
+      "plume_direction": [
+        0.91657,
+        -0.0,
+        -0.39988
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0013.geo",
+      "json_file": "case_0013.json"
+    },
+    {
+      "case_id": 14,
+      "case_name": "case_0014",
+      "status": "CAUTION",
+      "max_erosion_um": 3.2174,
+      "erosion_fraction": 0.1287,
+      "thruster_pos_m": [
+        3.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.91657,
+        0.0,
+        0.39988
+      ],
+      "plume_direction": [
+        0.91657,
+        -0.0,
+        -0.39988
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0014.geo",
+      "json_file": "case_0014.json"
+    },
+    {
+      "case_id": 15,
+      "case_name": "case_0015",
+      "status": "CAUTION",
+      "max_erosion_um": 4.5043,
+      "erosion_fraction": 0.18017,
+      "thruster_pos_m": [
+        3.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.91657,
+        0.0,
+        0.39988
+      ],
+      "plume_direction": [
+        0.91657,
+        -0.0,
+        -0.39988
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0015.geo",
+      "json_file": "case_0015.json"
+    },
+    {
+      "case_id": 16,
+      "case_name": "case_0016",
+      "status": "CAUTION",
+      "max_erosion_um": 6.4348,
+      "erosion_fraction": 0.25739,
+      "thruster_pos_m": [
+        3.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.91657,
+        0.0,
+        0.39988
+      ],
+      "plume_direction": [
+        0.91657,
+        -0.0,
+        -0.39988
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0016.geo",
+      "json_file": "case_0016.json"
+    },
+    {
+      "case_id": 17,
+      "case_name": "case_0017",
+      "status": "CAUTION",
+      "max_erosion_um": 9.0087,
+      "erosion_fraction": 0.36035,
+      "thruster_pos_m": [
+        3.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.91657,
+        0.0,
+        0.39988
+      ],
+      "plume_direction": [
+        0.91657,
+        -0.0,
+        -0.39988
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0017.geo",
+      "json_file": "case_0017.json"
+    },
+    {
+      "case_id": 18,
+      "case_name": "case_0018",
+      "status": "CAUTION",
+      "max_erosion_um": 3.7527,
+      "erosion_fraction": 0.15011,
+      "thruster_pos_m": [
+        3.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.93665,
+        0.0,
+        0.35026
+      ],
+      "plume_direction": [
+        0.93665,
+        -0.0,
+        -0.35026
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0018.geo",
+      "json_file": "case_0018.json"
+    },
+    {
+      "case_id": 19,
+      "case_name": "case_0019",
+      "status": "CAUTION",
+      "max_erosion_um": 5.2538,
+      "erosion_fraction": 0.21015,
+      "thruster_pos_m": [
+        3.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.93665,
+        0.0,
+        0.35026
+      ],
+      "plume_direction": [
+        0.93665,
+        -0.0,
+        -0.35026
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0019.geo",
+      "json_file": "case_0019.json"
+    },
+    {
+      "case_id": 20,
+      "case_name": "case_0020",
+      "status": "CAUTION",
+      "max_erosion_um": 7.5054,
+      "erosion_fraction": 0.30022,
+      "thruster_pos_m": [
+        3.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.93665,
+        0.0,
+        0.35026
+      ],
+      "plume_direction": [
+        0.93665,
+        -0.0,
+        -0.35026
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0020.geo",
+      "json_file": "case_0020.json"
+    },
+    {
+      "case_id": 21,
+      "case_name": "case_0021",
+      "status": "CAUTION",
+      "max_erosion_um": 10.5076,
+      "erosion_fraction": 0.4203,
+      "thruster_pos_m": [
+        3.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.93665,
+        0.0,
+        0.35026
+      ],
+      "plume_direction": [
+        0.93665,
+        -0.0,
+        -0.35026
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0021.geo",
+      "json_file": "case_0021.json"
+    },
+    {
+      "case_id": 22,
+      "case_name": "case_0022",
+      "status": "CAUTION",
+      "max_erosion_um": 4.7593,
+      "erosion_fraction": 0.19037,
+      "thruster_pos_m": [
+        3.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.93665,
+        0.0,
+        0.35026
+      ],
+      "plume_direction": [
+        0.93665,
+        -0.0,
+        -0.35026
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0022.geo",
+      "json_file": "case_0022.json"
+    },
+    {
+      "case_id": 23,
+      "case_name": "case_0023",
+      "status": "CAUTION",
+      "max_erosion_um": 6.663,
+      "erosion_fraction": 0.26652,
+      "thruster_pos_m": [
+        3.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.93665,
+        0.0,
+        0.35026
+      ],
+      "plume_direction": [
+        0.93665,
+        -0.0,
+        -0.35026
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0023.geo",
+      "json_file": "case_0023.json"
+    },
+    {
+      "case_id": 24,
+      "case_name": "case_0024",
+      "status": "CAUTION",
+      "max_erosion_um": 9.5185,
+      "erosion_fraction": 0.38074,
+      "thruster_pos_m": [
+        3.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.93665,
+        0.0,
+        0.35026
+      ],
+      "plume_direction": [
+        0.93665,
+        -0.0,
+        -0.35026
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0024.geo",
+      "json_file": "case_0024.json"
+    },
+    {
+      "case_id": 25,
+      "case_name": "case_0025",
+      "status": "MARGINAL",
+      "max_erosion_um": 13.326,
+      "erosion_fraction": 0.53304,
+      "thruster_pos_m": [
+        3.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.93665,
+        0.0,
+        0.35026
+      ],
+      "plume_direction": [
+        0.93665,
+        -0.0,
+        -0.35026
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0025.geo",
+      "json_file": "case_0025.json"
+    },
+    {
+      "case_id": 26,
+      "case_name": "case_0026",
+      "status": "CAUTION",
+      "max_erosion_um": 4.8701,
+      "erosion_fraction": 0.19481,
+      "thruster_pos_m": [
+        3.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.93665,
+        0.0,
+        0.35026
+      ],
+      "plume_direction": [
+        0.93665,
+        -0.0,
+        -0.35026
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0026.geo",
+      "json_file": "case_0026.json"
+    },
+    {
+      "case_id": 27,
+      "case_name": "case_0027",
+      "status": "CAUTION",
+      "max_erosion_um": 6.8182,
+      "erosion_fraction": 0.27273,
+      "thruster_pos_m": [
+        3.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.93665,
+        0.0,
+        0.35026
+      ],
+      "plume_direction": [
+        0.93665,
+        -0.0,
+        -0.35026
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0027.geo",
+      "json_file": "case_0027.json"
+    },
+    {
+      "case_id": 28,
+      "case_name": "case_0028",
+      "status": "CAUTION",
+      "max_erosion_um": 9.7403,
+      "erosion_fraction": 0.38961,
+      "thruster_pos_m": [
+        3.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.93665,
+        0.0,
+        0.35026
+      ],
+      "plume_direction": [
+        0.93665,
+        -0.0,
+        -0.35026
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0028.geo",
+      "json_file": "case_0028.json"
+    },
+    {
+      "case_id": 29,
+      "case_name": "case_0029",
+      "status": "MARGINAL",
+      "max_erosion_um": 13.6364,
+      "erosion_fraction": 0.54546,
+      "thruster_pos_m": [
+        3.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.93665,
+        0.0,
+        0.35026
+      ],
+      "plume_direction": [
+        0.93665,
+        -0.0,
+        -0.35026
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0029.geo",
+      "json_file": "case_0029.json"
+    },
+    {
+      "case_id": 30,
+      "case_name": "case_0030",
+      "status": "CAUTION",
+      "max_erosion_um": 4.8536,
+      "erosion_fraction": 0.19415,
+      "thruster_pos_m": [
+        4.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.95042,
+        0.0,
+        0.31098
+      ],
+      "plume_direction": [
+        0.95042,
+        -0.0,
+        -0.31098
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0030.geo",
+      "json_file": "case_0030.json"
+    },
+    {
+      "case_id": 31,
+      "case_name": "case_0031",
+      "status": "CAUTION",
+      "max_erosion_um": 6.7951,
+      "erosion_fraction": 0.2718,
+      "thruster_pos_m": [
+        4.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.95042,
+        0.0,
+        0.31098
+      ],
+      "plume_direction": [
+        0.95042,
+        -0.0,
+        -0.31098
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0031.geo",
+      "json_file": "case_0031.json"
+    },
+    {
+      "case_id": 32,
+      "case_name": "case_0032",
+      "status": "CAUTION",
+      "max_erosion_um": 9.7073,
+      "erosion_fraction": 0.38829,
+      "thruster_pos_m": [
+        4.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.95042,
+        0.0,
+        0.31098
+      ],
+      "plume_direction": [
+        0.95042,
+        -0.0,
+        -0.31098
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0032.geo",
+      "json_file": "case_0032.json"
+    },
+    {
+      "case_id": 33,
+      "case_name": "case_0033",
+      "status": "MARGINAL",
+      "max_erosion_um": 13.5902,
+      "erosion_fraction": 0.54361,
+      "thruster_pos_m": [
+        4.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.95042,
+        0.0,
+        0.31098
+      ],
+      "plume_direction": [
+        0.95042,
+        -0.0,
+        -0.31098
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0033.geo",
+      "json_file": "case_0033.json"
+    },
+    {
+      "case_id": 34,
+      "case_name": "case_0034",
+      "status": "CAUTION",
+      "max_erosion_um": 6.38,
+      "erosion_fraction": 0.2552,
+      "thruster_pos_m": [
+        4.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.95042,
+        0.0,
+        0.31098
+      ],
+      "plume_direction": [
+        0.95042,
+        -0.0,
+        -0.31098
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0034.geo",
+      "json_file": "case_0034.json"
+    },
+    {
+      "case_id": 35,
+      "case_name": "case_0035",
+      "status": "CAUTION",
+      "max_erosion_um": 8.932,
+      "erosion_fraction": 0.35728,
+      "thruster_pos_m": [
+        4.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.95042,
+        0.0,
+        0.31098
+      ],
+      "plume_direction": [
+        0.95042,
+        -0.0,
+        -0.31098
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0035.geo",
+      "json_file": "case_0035.json"
+    },
+    {
+      "case_id": 36,
+      "case_name": "case_0036",
+      "status": "MARGINAL",
+      "max_erosion_um": 12.76,
+      "erosion_fraction": 0.5104,
+      "thruster_pos_m": [
+        4.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.95042,
+        0.0,
+        0.31098
+      ],
+      "plume_direction": [
+        0.95042,
+        -0.0,
+        -0.31098
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0036.geo",
+      "json_file": "case_0036.json"
+    },
+    {
+      "case_id": 37,
+      "case_name": "case_0037",
+      "status": "MARGINAL",
+      "max_erosion_um": 17.864,
+      "erosion_fraction": 0.71456,
+      "thruster_pos_m": [
+        4.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.95042,
+        0.0,
+        0.31098
+      ],
+      "plume_direction": [
+        0.95042,
+        -0.0,
+        -0.31098
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0037.geo",
+      "json_file": "case_0037.json"
+    },
+    {
+      "case_id": 38,
+      "case_name": "case_0038",
+      "status": "CAUTION",
+      "max_erosion_um": 6.5655,
+      "erosion_fraction": 0.26262,
+      "thruster_pos_m": [
+        4.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.95042,
+        0.0,
+        0.31098
+      ],
+      "plume_direction": [
+        0.95042,
+        -0.0,
+        -0.31098
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0038.geo",
+      "json_file": "case_0038.json"
+    },
+    {
+      "case_id": 39,
+      "case_name": "case_0039",
+      "status": "CAUTION",
+      "max_erosion_um": 9.1917,
+      "erosion_fraction": 0.36767,
+      "thruster_pos_m": [
+        4.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.95042,
+        0.0,
+        0.31098
+      ],
+      "plume_direction": [
+        0.95042,
+        -0.0,
+        -0.31098
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0039.geo",
+      "json_file": "case_0039.json"
+    },
+    {
+      "case_id": 40,
+      "case_name": "case_0040",
+      "status": "MARGINAL",
+      "max_erosion_um": 13.131,
+      "erosion_fraction": 0.52524,
+      "thruster_pos_m": [
+        4.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.95042,
+        0.0,
+        0.31098
+      ],
+      "plume_direction": [
+        0.95042,
+        -0.0,
+        -0.31098
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0040.geo",
+      "json_file": "case_0040.json"
+    },
+    {
+      "case_id": 41,
+      "case_name": "case_0041",
+      "status": "MARGINAL",
+      "max_erosion_um": 18.3834,
+      "erosion_fraction": 0.73534,
+      "thruster_pos_m": [
+        4.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.95042,
+        0.0,
+        0.31098
+      ],
+      "plume_direction": [
+        0.95042,
+        -0.0,
+        -0.31098
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0041.geo",
+      "json_file": "case_0041.json"
+    },
+    {
+      "case_id": 42,
+      "case_name": "case_0042",
+      "status": "CAUTION",
+      "max_erosion_um": 5.6619,
+      "erosion_fraction": 0.22648,
+      "thruster_pos_m": [
+        4.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96021,
+        0.0,
+        0.27928
+      ],
+      "plume_direction": [
+        0.96021,
+        -0.0,
+        -0.27928
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0042.geo",
+      "json_file": "case_0042.json"
+    },
+    {
+      "case_id": 43,
+      "case_name": "case_0043",
+      "status": "CAUTION",
+      "max_erosion_um": 7.9267,
+      "erosion_fraction": 0.31707,
+      "thruster_pos_m": [
+        4.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96021,
+        0.0,
+        0.27928
+      ],
+      "plume_direction": [
+        0.96021,
+        -0.0,
+        -0.27928
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0043.geo",
+      "json_file": "case_0043.json"
+    },
+    {
+      "case_id": 44,
+      "case_name": "case_0044",
+      "status": "CAUTION",
+      "max_erosion_um": 11.3238,
+      "erosion_fraction": 0.45295,
+      "thruster_pos_m": [
+        4.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96021,
+        0.0,
+        0.27928
+      ],
+      "plume_direction": [
+        0.96021,
+        -0.0,
+        -0.27928
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0044.geo",
+      "json_file": "case_0044.json"
+    },
+    {
+      "case_id": 45,
+      "case_name": "case_0045",
+      "status": "MARGINAL",
+      "max_erosion_um": 15.8533,
+      "erosion_fraction": 0.63413,
+      "thruster_pos_m": [
+        4.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96021,
+        0.0,
+        0.27928
+      ],
+      "plume_direction": [
+        0.96021,
+        -0.0,
+        -0.27928
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0045.geo",
+      "json_file": "case_0045.json"
+    },
+    {
+      "case_id": 46,
+      "case_name": "case_0046",
+      "status": "CAUTION",
+      "max_erosion_um": 7.8843,
+      "erosion_fraction": 0.31537,
+      "thruster_pos_m": [
+        4.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96021,
+        0.0,
+        0.27928
+      ],
+      "plume_direction": [
+        0.96021,
+        -0.0,
+        -0.27928
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0046.geo",
+      "json_file": "case_0046.json"
+    },
+    {
+      "case_id": 47,
+      "case_name": "case_0047",
+      "status": "CAUTION",
+      "max_erosion_um": 11.0381,
+      "erosion_fraction": 0.44152,
+      "thruster_pos_m": [
+        4.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96021,
+        0.0,
+        0.27928
+      ],
+      "plume_direction": [
+        0.96021,
+        -0.0,
+        -0.27928
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0047.geo",
+      "json_file": "case_0047.json"
+    },
+    {
+      "case_id": 48,
+      "case_name": "case_0048",
+      "status": "MARGINAL",
+      "max_erosion_um": 15.7687,
+      "erosion_fraction": 0.63075,
+      "thruster_pos_m": [
+        4.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96021,
+        0.0,
+        0.27928
+      ],
+      "plume_direction": [
+        0.96021,
+        -0.0,
+        -0.27928
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0048.geo",
+      "json_file": "case_0048.json"
+    },
+    {
+      "case_id": 49,
+      "case_name": "case_0049",
+      "status": "MARGINAL",
+      "max_erosion_um": 22.0762,
+      "erosion_fraction": 0.88305,
+      "thruster_pos_m": [
+        4.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96021,
+        0.0,
+        0.27928
+      ],
+      "plume_direction": [
+        0.96021,
+        -0.0,
+        -0.27928
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0049.geo",
+      "json_file": "case_0049.json"
+    },
+    {
+      "case_id": 50,
+      "case_name": "case_0050",
+      "status": "CAUTION",
+      "max_erosion_um": 8.2218,
+      "erosion_fraction": 0.32887,
+      "thruster_pos_m": [
+        4.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96021,
+        0.0,
+        0.27928
+      ],
+      "plume_direction": [
+        0.96021,
+        -0.0,
+        -0.27928
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0050.geo",
+      "json_file": "case_0050.json"
+    },
+    {
+      "case_id": 51,
+      "case_name": "case_0051",
+      "status": "CAUTION",
+      "max_erosion_um": 11.5105,
+      "erosion_fraction": 0.46042,
+      "thruster_pos_m": [
+        4.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96021,
+        0.0,
+        0.27928
+      ],
+      "plume_direction": [
+        0.96021,
+        -0.0,
+        -0.27928
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0051.geo",
+      "json_file": "case_0051.json"
+    },
+    {
+      "case_id": 52,
+      "case_name": "case_0052",
+      "status": "MARGINAL",
+      "max_erosion_um": 16.4436,
+      "erosion_fraction": 0.65774,
+      "thruster_pos_m": [
+        4.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96021,
+        0.0,
+        0.27928
+      ],
+      "plume_direction": [
+        0.96021,
+        -0.0,
+        -0.27928
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0052.geo",
+      "json_file": "case_0052.json"
+    },
+    {
+      "case_id": 53,
+      "case_name": "case_0053",
+      "status": "MARGINAL",
+      "max_erosion_um": 23.021,
+      "erosion_fraction": 0.92084,
+      "thruster_pos_m": [
+        4.5,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96021,
+        0.0,
+        0.27928
+      ],
+      "plume_direction": [
+        0.96021,
+        -0.0,
+        -0.27928
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0053.geo",
+      "json_file": "case_0053.json"
+    },
+    {
+      "case_id": 54,
+      "case_name": "case_0054",
+      "status": "CAUTION",
+      "max_erosion_um": 6.069,
+      "erosion_fraction": 0.24276,
+      "thruster_pos_m": [
+        5.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96741,
+        0.0,
+        0.25323
+      ],
+      "plume_direction": [
+        0.96741,
+        -0.0,
+        -0.25323
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0054.geo",
+      "json_file": "case_0054.json"
+    },
+    {
+      "case_id": 55,
+      "case_name": "case_0055",
+      "status": "CAUTION",
+      "max_erosion_um": 8.4967,
+      "erosion_fraction": 0.33987,
+      "thruster_pos_m": [
+        5.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96741,
+        0.0,
+        0.25323
+      ],
+      "plume_direction": [
+        0.96741,
+        -0.0,
+        -0.25323
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0055.geo",
+      "json_file": "case_0055.json"
+    },
+    {
+      "case_id": 56,
+      "case_name": "case_0056",
+      "status": "CAUTION",
+      "max_erosion_um": 12.1381,
+      "erosion_fraction": 0.48552,
+      "thruster_pos_m": [
+        5.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96741,
+        0.0,
+        0.25323
+      ],
+      "plume_direction": [
+        0.96741,
+        -0.0,
+        -0.25323
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0056.geo",
+      "json_file": "case_0056.json"
+    },
+    {
+      "case_id": 57,
+      "case_name": "case_0057",
+      "status": "MARGINAL",
+      "max_erosion_um": 16.9933,
+      "erosion_fraction": 0.67973,
+      "thruster_pos_m": [
+        5.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96741,
+        0.0,
+        0.25323
+      ],
+      "plume_direction": [
+        0.96741,
+        -0.0,
+        -0.25323
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0057.geo",
+      "json_file": "case_0057.json"
+    },
+    {
+      "case_id": 58,
+      "case_name": "case_0058",
+      "status": "CAUTION",
+      "max_erosion_um": 9.1802,
+      "erosion_fraction": 0.36721,
+      "thruster_pos_m": [
+        5.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96741,
+        0.0,
+        0.25323
+      ],
+      "plume_direction": [
+        0.96741,
+        -0.0,
+        -0.25323
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0058.geo",
+      "json_file": "case_0058.json"
+    },
+    {
+      "case_id": 59,
+      "case_name": "case_0059",
+      "status": "MARGINAL",
+      "max_erosion_um": 12.8522,
+      "erosion_fraction": 0.51409,
+      "thruster_pos_m": [
+        5.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96741,
+        0.0,
+        0.25323
+      ],
+      "plume_direction": [
+        0.96741,
+        -0.0,
+        -0.25323
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0059.geo",
+      "json_file": "case_0059.json"
+    },
+    {
+      "case_id": 60,
+      "case_name": "case_0060",
+      "status": "MARGINAL",
+      "max_erosion_um": 18.3603,
+      "erosion_fraction": 0.73441,
+      "thruster_pos_m": [
+        5.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96741,
+        0.0,
+        0.25323
+      ],
+      "plume_direction": [
+        0.96741,
+        -0.0,
+        -0.25323
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0060.geo",
+      "json_file": "case_0060.json"
+    },
+    {
+      "case_id": 61,
+      "case_name": "case_0061",
+      "status": "CAUTION",
+      "max_erosion_um": 9.7947,
+      "erosion_fraction": 0.39179,
+      "thruster_pos_m": [
+        5.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96741,
+        0.0,
+        0.25323
+      ],
+      "plume_direction": [
+        0.96741,
+        -0.0,
+        -0.25323
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0061.geo",
+      "json_file": "case_0061.json"
+    },
+    {
+      "case_id": 62,
+      "case_name": "case_0062",
+      "status": "MARGINAL",
+      "max_erosion_um": 13.7126,
+      "erosion_fraction": 0.5485,
+      "thruster_pos_m": [
+        5.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96741,
+        0.0,
+        0.25323
+      ],
+      "plume_direction": [
+        0.96741,
+        -0.0,
+        -0.25323
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0062.geo",
+      "json_file": "case_0062.json"
+    },
+    {
+      "case_id": 63,
+      "case_name": "case_0063",
+      "status": "MARGINAL",
+      "max_erosion_um": 19.5894,
+      "erosion_fraction": 0.78358,
+      "thruster_pos_m": [
+        5.0,
+        0.0,
+        -1.55
+      ],
+      "thrust_direction": [
+        -0.96741,
+        0.0,
+        0.25323
+      ],
+      "plume_direction": [
+        0.96741,
+        -0.0,
+        -0.25323
+      ],
+      "cog_m": [
+        0.0,
+        0.0,
+        -0.24118
+      ],
+      "geo_file": "case_0063.geo",
+      "json_file": "case_0063.json"
+    }
+  ]
+}

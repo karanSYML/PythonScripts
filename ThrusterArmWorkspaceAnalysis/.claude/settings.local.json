@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c ':*)",
+      "Bash(python3 -m pip show numpy)",
+      "Bash(ls /Users/karan94/Desktop/ThrusterArmWorkspaceAnalysis/*.py)",
+      "Bash(conda run:*)",
+      "Bash(python3.11 -c \"import numpy; print\\(numpy.__version__\\)\")",
+      "Bash(pip3 install:*)",
+      "Bash(python3 -c \"import numpy; print\\(numpy.__version__\\)\")",
+      "Bash(/usr/bin/python3 -c \"import numpy; print\\(numpy.__version__\\)\")",
+      "Read(//Users/karan94/miniforge3/**)",
+      "Read(//Users/karan94/**)",
+      "Bash(/opt/homebrew/Caskroom/miniforge/base/bin/python3.10 -c ':*)",
+      "Bash(/opt/homebrew/Caskroom/miniforge/base/bin/python3.10 -m pip install numpy)",
+      "Bash(/opt/homebrew/bin/python3.10 plume_impingement_pipeline.py)",
+      "Bash(/opt/homebrew/bin/python3.10 propellant_erosion_correlation.py)",
+      "Bash(/opt/homebrew/bin/python3.10 geometry_visualizer.py --save)",
+      "Bash(/opt/homebrew/bin/python3.10 openplume_exporter.py)"
+    ]
+  }
+}

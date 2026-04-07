@@ -5,11 +5,11 @@ Plasma Plume Impingement Parametric Study Pipeline
 Integrated framework for life-extension servicer missions.
 
 Modules:
-  1. Case Matrix Generator   : builds all parameter combinations + geometry
-  2. Analytical Pre-Screener : fast erosion estimates (inverse-square + sputter model)
-  3. Heatmap Visualizer      : multi-dimensional interactive dashboard
+  1. Case Matrix Generator   – builds all parameter combinations + geometry
+  2. Analytical Pre-Screener  – fast erosion estimates (inverse-square + sputter model)
+  3. Heatmap Visualizer       – multi-dimensional interactive dashboard
 
-Author: Karan Anand (karan.anand@infiniteorbits.io)
+Author: Plume Impingement Analysis Framework
 """
 
 import numpy as np
@@ -17,13 +17,12 @@ import itertools
 import json
 import os
 from dataclasses import dataclass, field, asdict
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional, Dict, Union
 import warnings
 
 # ---------------------------------------------------------------------------
 # 1.  DATA CLASSES – Parameter Definitions
 # ---------------------------------------------------------------------------
-
 
 @dataclass
 class ThrusterParams:
@@ -35,70 +34,179 @@ class ThrusterParams:
     beam_divergence_half_angle: float = 20.0   # deg (1/e² half-angle)
     plume_cosine_exponent: float = 10.0        # n in cos^n(θ) model
     propellant: str = "Xenon"
-    thrust_N: float = 0.053            # N  (nominal) # 59-53 mN 
+    thrust_N: float = 0.08            # N  (nominal)
 
-# TBC with Sushir
+
 @dataclass
 class ArmGeometry:
     """Thruster arm configuration."""
-    arm_length: float = 2.0           # m  (pivot to thruster exit) TBC
-    pivot_offset_x: float = 0.167      # m  from servicer geometric centre
-    pivot_offset_y: float = 0.32       # m
-    pivot_offset_z: float = 1.06       # m  (typically on anti-earth face)
+    arm_length: float = 2.0           # m  (pivot to thruster exit)
+    pivot_offset_x: float = 0.0       # m  from servicer geometric centre
+    pivot_offset_y: float = 0.0       # m
+    pivot_offset_z: float = 0.5       # m  (typically on anti-earth face)
     azimuth_deg: float = 0.0          # deg  arm azimuth in body frame
     elevation_deg: float = 0.0        # deg  arm elevation in body frame
     cant_angle_deg: float = 0.0       # deg  thrust vector cant at tip
 
-# TBC with Sushir
+
+@dataclass
+class RoboticArmGeometry:
+    """3-DOF robotic arm: shoulder yaw (q0) + shoulder pitch (q1) + elbow pitch (q2).
+
+    Joint convention
+    ----------------
+    q0  Shoulder Yaw   – rotation about the body Z-axis at the pivot
+    q1  Shoulder Pitch – tilts the upper arm up (+) or down (-) from horizontal
+    q2  Elbow Pitch    – bends the forearm relative to the upper arm (same vertical plane)
+
+    Forward kinematics (client body frame)
+    ----------------------------------------
+    u_rad     = [cos(q0), sin(q0), 0]          # horizontal direction after yaw
+    d_upper   = cos(q1)*u_rad + sin(q1)*Z_hat  # upper-arm unit vector
+    d_lower   = cos(q1+q2)*u_rad + sin(q1+q2)*Z_hat  # forearm unit vector
+
+    p_elbow     = pivot + L1 * d_upper
+    p_thruster  = p_elbow + L2 * d_lower
+    """
+    link1_length: float = 1.2        # m  shoulder → elbow
+    link2_length: float = 1.5        # m  elbow → thruster exit
+
+    # Pivot position offset from the servicer geometric centre
+    pivot_offset_x: float = 0.0 # 0.174      # m
+    pivot_offset_y: float = 0.0 #-0.299      # m
+    pivot_offset_z: float = 0.0 #+1.159      # m  (0 = at servicer Z+ face, when pivot is computed externally)
+
+    # Joint angle limits [deg]
+    q0_min_deg: float =  0.0       # shoulder yaw limits
+    q0_max_deg: float =  270.0
+    q1_min_deg: float =  0.0        # shoulder pitch limits
+    q1_max_deg: float =  235.0
+    q2_min_deg: float = -36.0       # elbow pitch limits
+    q2_max_deg: float =  99.0
+
+    # Desired shoulder yaw (primary sweep parameter, set before IK solve)
+    shoulder_yaw_deg: float = 0.0
+    # Elbow configuration preference
+    elbow_up: bool = True
+
+    def arm_reach(self) -> float:
+        """Total arm reach (straight) [m]."""
+        return self.link1_length + self.link2_length
+
+    def forward_kinematics(self, pivot: np.ndarray,
+                           q0: float, q1: float, q2: float
+                           ) -> Tuple[np.ndarray, np.ndarray]:
+        """Return (p_elbow, p_thruster) given joint angles in radians."""
+        u_rad = np.array([np.cos(q0), np.sin(q0), 0.0])
+        u_z   = np.array([0.0, 0.0, 1.0])
+        d_upper = np.cos(q1) * u_rad + np.sin(q1) * u_z
+        d_lower = np.cos(q1 + q2) * u_rad + np.sin(q1 + q2) * u_z
+        p_elbow    = pivot + self.link1_length * d_upper
+        p_thruster = p_elbow + self.link2_length * d_lower
+        return p_elbow, p_thruster
+
+    def inverse_kinematics(self, pivot: np.ndarray, target: np.ndarray,
+                           elbow_up: bool = True
+                           ) -> Optional[Tuple[float, float, float]]:
+        """Closed-form IK for yaw-pitch-pitch arm.
+
+        Returns (q0, q1, q2) in radians, or None if target is unreachable.
+        Uses the standard 2R planar IK in the vertical plane defined by q0.
+        """
+        L1, L2 = self.link1_length, self.link2_length
+        dv = target - pivot
+
+        # Shoulder yaw from horizontal projection
+        q0 = np.arctan2(dv[1], dv[0])
+
+        # Horizontal reach and vertical offset
+        r = np.sqrt(dv[0] ** 2 + dv[1] ** 2)
+        z = dv[2]
+
+        # Cosine-rule for elbow angle
+        dist_sq = r ** 2 + z ** 2
+        cos_q2 = (dist_sq - L1 ** 2 - L2 ** 2) / (2.0 * L1 * L2)
+
+        if abs(cos_q2) > 1.0:
+            return None  # target out of reach
+
+        cos_q2 = np.clip(cos_q2, -1.0, 1.0)
+        q2 = np.arccos(cos_q2) if elbow_up else -np.arccos(cos_q2)
+
+        # Shoulder pitch
+        alpha = np.arctan2(z, r)
+        beta  = np.arctan2(L2 * np.sin(q2), L1 + L2 * np.cos(q2))
+        q1 = alpha - beta
+
+        return q0, q1, q2
+
+    def within_joint_limits(self, q0_rad: float, q1_rad: float,
+                            q2_rad: float) -> bool:
+        """Return True if all joint angles are within configured limits."""
+        q0d = np.degrees(q0_rad)
+        q1d = np.degrees(q1_rad)
+        q2d = np.degrees(q2_rad)
+        return (self.q0_min_deg <= q0d <= self.q0_max_deg and
+                self.q1_min_deg <= q1d <= self.q1_max_deg and
+                self.q2_min_deg <= q2d <= self.q2_max_deg)
+
+
 @dataclass
 class StackConfig:
     """Combined servicer + client satellite stack."""
     # Servicer
-    servicer_mass: float = 523.0        # kg
-    servicer_bus_x: float = 0.826         # m  (along velocity)
-    servicer_bus_y: float = 1.5         # m  (along orbit-normal / N-S)
-    servicer_bus_z: float = 0.9         # m  (along nadir)
+    servicer_mass: float = 735.0        # kg
+    servicer_bus_x: float = 0.90        # m  (along velocity)
+    servicer_bus_y: float = 1.52        # m  (along orbit-normal / N-S)
+    servicer_bus_z: float = 0.80         # m  (along nadir)
 
     # Client (telecom satellite)
-    client_mass: float = 2804.0         # kg
-    client_bus_x: float = 2.3           # m
-    client_bus_y: float = 3.0           # m
-    client_bus_z: float = 5.0           # m
+    client_mass: float = 2500.0         # kg
+    client_bus_x: float = 2.5           # m
+    client_bus_y: float = 2.2           # m
+    client_bus_z: float = 3.0           # m
 
     # Solar panels (client) – modelled as flat rectangles
-    panel_span_one_side: float = 16.60   # m  from bus edge to panel tip
-    panel_width: float = 2.3            # m  (along orbit-normal)
-    panel_hinge_offset_y: float = 0.0   # m  offset of hinge line from bus centre-y
+    panel_span_one_side: float = 16.0   # m  from bus edge to panel tip
+    panel_width: float = 2.2            # m  (along orbit-normal)
+    panel_hinge_offset_y: float = 1.0   # m  offset of hinge line from bus centre-y
     panel_cant_angle_deg: float = 0.0   # deg  cant about hinge axis
 
     # Docking interface
-    dock_offset_z: float = 1.0          # m  servicer offset along Z from client centre
+    lar_offset_z: float = 0.05          # m  LAR hardware standoff height
+    dock_offset_z: float =-0.8          # m  servicer offset along Z from client centre
     dock_offset_x: float = 0.0          # m
 
     # Antenna reflectors (simplified as discs)
-    antenna_diameter: float = 2.25       # m
+    antenna_diameter: float = 2.2       # m
     antenna_offset_x: float = 0.0       # m  from client centre
     antenna_offset_z: float = 1.8       # m  (earth-facing typically)
 
-    def stack_cog(self) -> np.ndarray:
-        """Combined centre of gravity in client body frame."""
-        # Servicer CG assumed at its geometric centre, offset by docking
-        servicer_cg = np.array([
+    def servicer_origin_in_client_frame(self) -> np.ndarray:
+        """Servicer geometric centre in client body frame.
+        Servicer docks on the client Z- (earth-facing) face via the LAR.
+        Z is positive anti-earth; servicer hangs below client.
+        """
+        return np.array([
             self.dock_offset_x,
             0.0,
-            self.client_bus_z / 2.0 + self.servicer_bus_z / 2.0 + self.dock_offset_z
+            -(self.client_bus_z / 2.0 + self.lar_offset_z + self.servicer_bus_z / 2.0)
+            + self.dock_offset_z
         ])
+
+    def stack_cog(self) -> np.ndarray:
+        """Combined centre of gravity in client body frame."""
+        servicer_cg = self.servicer_origin_in_client_frame()
         client_cg = np.array([0.0, 0.0, 0.0])
         total_mass = self.servicer_mass + self.client_mass
-        cog = (self.client_mass * client_cg + self.servicer_mass * servicer_cg) / total_mass
-        return cog
+        return (self.client_mass * client_cg + self.servicer_mass * servicer_cg) / total_mass
 
- 
+
 @dataclass
 class OperationalParams:
     """Mission operational parameters."""
-    firing_duration_s: float = 9468     # s per manoeuvre // 306 minutes
-    firings_per_day: float = 2.0
+    firing_duration_s: float = 25000.0     # s per manoeuvre
+    firings_per_day: float = 1.0
     mission_duration_years: float = 5.0
     manoeuvre_type: str = "NSSK"          # NSSK or EWSK
     panel_sun_tracking_angle_deg: float = 0.0  # panel rotation about hinge during firing
@@ -108,7 +216,7 @@ class OperationalParams:
 class MaterialParams:
     """Target surface material properties."""
     name: str = "Silver_interconnect"
-    thickness_um: float = 25.0            # µm
+    thickness_um: float = 15.0            # µm
     density_kg_m3: float = 10490.0        # kg/m³  (Ag)
     atomic_mass_amu: float = 107.87       # amu
     # Sputter yield coefficients (Yamamura-type fit for Xe+ on Ag)
@@ -126,25 +234,56 @@ class MaterialParams:
 # 2.  GEOMETRY ENGINE
 # ---------------------------------------------------------------------------
 
+def _segment_intersects_aabb(P0: np.ndarray, P1: np.ndarray,
+                              box_min: np.ndarray, box_max: np.ndarray) -> bool:
+    """Return True if line segment P0→P1 intersects the axis-aligned box.
+
+    Uses the slab method: for each axis find the t-interval where the ray
+    is inside that slab, then intersect all three intervals.
+    """
+    d = P1 - P0
+    t_min, t_max = 0.0, 1.0
+
+    for i in range(3):
+        if abs(d[i]) < 1e-12:
+            # Segment is parallel to slab; check if inside
+            if P0[i] < box_min[i] or P0[i] > box_max[i]:
+                return False
+        else:
+            t1 = (box_min[i] - P0[i]) / d[i]
+            t2 = (box_max[i] - P0[i]) / d[i]
+            if t1 > t2:
+                t1, t2 = t2, t1
+            t_min = max(t_min, t1)
+            t_max = min(t_max, t2)
+            if t_min > t_max:
+                return False
+
+    return True
+
+
 class GeometryEngine:
     """Computes plume origin, direction, distances and angles to surfaces."""
 
-    def __init__(self, arm: ArmGeometry, stack: StackConfig):
+    def __init__(self, arm: "Union[ArmGeometry, RoboticArmGeometry]", stack: StackConfig):
         self.arm = arm
         self.stack = stack
 
     def thruster_position(self) -> np.ndarray:
         """Thruster exit plane centre in client body frame."""
-        # Pivot point in client frame
-        # Servicer is docked on top (+Z), pivot is on servicer
-        servicer_base_z = self.stack.client_bus_z / 2.0 + self.stack.dock_offset_z
-        pivot = np.array([
-            self.stack.dock_offset_x + self.arm.pivot_offset_x,
-            self.arm.pivot_offset_y,
-            servicer_base_z + self.arm.pivot_offset_z
-        ])
+        if isinstance(self.arm, RoboticArmGeometry):
+            return self._thruster_position_ik()
+        else:
+            return self._thruster_position_single_link()
 
-        # Arm direction (azimuth from +X towards +Y, elevation from XY plane)
+    def _thruster_position_single_link(self) -> np.ndarray:
+        """Legacy single-link arm (ArmGeometry)."""
+        servicer_origin = self.stack.servicer_origin_in_client_frame()
+        pivot = np.array([
+            servicer_origin[0] + self.arm.pivot_offset_x,
+            servicer_origin[1] + self.arm.pivot_offset_y,
+            servicer_origin[2] + self.stack.servicer_bus_z / 2.0 + self.arm.pivot_offset_z
+        ])
         az = np.radians(self.arm.azimuth_deg)
         el = np.radians(self.arm.elevation_deg)
         arm_dir = np.array([
@@ -152,9 +291,124 @@ class GeometryEngine:
             np.cos(el) * np.sin(az),
             np.sin(el)
         ])
+        return pivot + self.arm.arm_length * arm_dir
 
-        thruster_pos = pivot + self.arm.arm_length * arm_dir
-        return thruster_pos
+    def _pivot_position(self) -> np.ndarray:
+        """Pivot position in client frame (robotic arm)."""
+        servicer_origin = self.stack.servicer_origin_in_client_frame()
+        return np.array([
+            servicer_origin[0] + self.arm.pivot_offset_x,
+            servicer_origin[1] + self.arm.pivot_offset_y,
+            # Pivot is on servicer Z+ face (facing toward client Z- face)
+            servicer_origin[2] + self.stack.servicer_bus_z / 2.0 + self.arm.pivot_offset_z
+        ])
+
+    def _thruster_position_ik(self) -> np.ndarray:
+        """Robotic arm: IK to find joint angles, then FK to get thruster position.
+
+        Target placement strategy:
+          The arm extends horizontally in the shoulder_yaw_deg azimuth direction at
+          total reach (L1+L2).  This keeps the arm clear of the client bus (which
+          sits above the pivot) and makes shoulder_yaw_deg the primary control for
+          where the thruster is placed around the spacecraft.  The thrust direction
+          (computed separately in thrust_direction()) then aims the plume toward the
+          stack COG.
+
+          IK still resolves the elbow angle consistent with the elbow_up flag, which
+          is relevant when the arm geometry has unequal link lengths.  For a
+          horizontal target at reach R the IK degenerates to q1=0, q2=0 (fully
+          extended), but link_ratio still affects the elbow height during collision
+          checking (arm_link_positions).
+
+        If IK fails (out of reach or joint limits exceeded), the straight horizontal
+        fallback is returned and ik_feasible is False.
+        """
+        arm = self.arm
+        pivot = self._pivot_position()
+
+        # Desired azimuth from shoulder_yaw_deg
+        q0_desired = np.radians(arm.shoulder_yaw_deg)
+        R = arm.link1_length + arm.link2_length
+
+        # Target: R from pivot horizontally in the q0 azimuth direction.
+        # Staying at the pivot Z keeps the arm below the client bus (pivot is on
+        # the servicer Z+ face, which is just below the client bottom face).
+        target = pivot + np.array([
+            np.cos(q0_desired) * R,
+            np.sin(q0_desired) * R,
+            0.0
+        ])
+
+        # Solve IK
+        ik_result = arm.inverse_kinematics(pivot, target, elbow_up=arm.elbow_up)
+
+        self._ik_feasible = False
+        self._ik_joint_angles = None
+        self._pivot_pos = pivot
+
+        if ik_result is not None:
+            q0, q1, q2 = ik_result
+            if arm.within_joint_limits(q0, q1, q2):
+                self._ik_feasible = True
+                self._ik_joint_angles = (q0, q1, q2)
+                _, p_thruster = arm.forward_kinematics(pivot, q0, q1, q2)
+                return p_thruster
+
+        # Fallback: place thruster at target directly (joint-limit violation flagged)
+        self._ik_joint_angles = ik_result  # may be None
+        return target
+
+    def arm_link_positions(self) -> Tuple[np.ndarray, Optional[np.ndarray], np.ndarray]:
+        """Return (pivot, elbow_or_None, thruster) positions in client frame.
+
+        For ArmGeometry (single link), elbow is None.
+        For RoboticArmGeometry, all three are returned.
+        """
+        if not isinstance(self.arm, RoboticArmGeometry):
+            p_thruster = self.thruster_position()
+            return self._pivot_position() if hasattr(self, '_pivot_position') else p_thruster, None, p_thruster
+
+        # Ensure _thruster_position_ik has been called
+        p_thruster = self.thruster_position()
+        pivot = self._pivot_pos
+        if self._ik_joint_angles is not None:
+            q0, q1, q2 = self._ik_joint_angles
+            p_elbow, _ = self.arm.forward_kinematics(pivot, q0, q1, q2)
+        else:
+            p_elbow = pivot  # degenerate: IK failed
+        return pivot, p_elbow, p_thruster
+
+    def check_arm_collision_with_client_bus(self) -> bool:
+        """Return True if any arm link segment passes through the client bus box.
+
+        Uses AABB slab intersection test for each link segment.
+        The client bus occupies:
+          X in [-bx/2, bx/2], Y in [-by/2, by/2], Z in [-bz/2, bz/2]
+        """
+        stack = self.stack
+        bx = stack.client_bus_x / 2.0
+        by = stack.client_bus_y / 2.0
+        bz = stack.client_bus_z / 2.0
+        box_min = np.array([-bx, -by, -bz])
+        box_max = np.array([ bx,  by,  bz])
+
+        pivot, p_elbow, p_thruster = self.arm_link_positions()
+        segments = [(pivot, p_elbow)] if p_elbow is not None else []
+        segments.append((pivot if p_elbow is None else p_elbow, p_thruster))
+
+        for (P0, P1) in segments:
+            if _segment_intersects_aabb(P0, P1, box_min, box_max):
+                return True
+        return False
+
+    def ik_feasible(self) -> bool:
+        """Return True if the last IK solve was within joint limits."""
+        if not isinstance(self.arm, RoboticArmGeometry):
+            return True  # single-link arm is always "feasible"
+        # Trigger thruster_position if not yet computed
+        if not hasattr(self, '_ik_feasible'):
+            self.thruster_position()
+        return getattr(self, '_ik_feasible', False)
 
     def thrust_direction(self) -> np.ndarray:
         """Unit thrust vector in client body frame.
@@ -170,8 +424,8 @@ class GeometryEngine:
 
         # Apply cant angle as a rotation about an axis perpendicular to
         # both the ideal direction and the arm axis
-        if abs(self.arm.cant_angle_deg) > 0.01:
-            cant = np.radians(self.arm.cant_angle_deg)
+        if abs(getattr(self.arm, 'cant_angle_deg', 0.0)) > 0.01:
+            cant = np.radians(getattr(self.arm, 'cant_angle_deg', 0.0))
             # Simple rotation: tilt thrust vector away from ideal by cant angle
             # in the plane containing ideal_dir and Z-hat
             perp = np.cross(ideal_dir, np.array([0, 0, 1]))
@@ -268,7 +522,7 @@ class GeometryEngine:
 
 
 # ---------------------------------------------------------------------------
-# 3.  ANALYTICAL PRE-SCREENING (Sputter Erosion Estimator)
+# 3.  ANALYTICAL PRE-SCREENER (Sputter Erosion Estimator)
 # ---------------------------------------------------------------------------
 
 class ErosionEstimator:
@@ -379,18 +633,18 @@ class CaseMatrixGenerator:
     def _set_defaults(self):
         """Set default parameter sweep ranges."""
         self.param_ranges = {
-            # Arm geometry
-            "arm_length":          np.array([1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]),
-            "arm_azimuth_deg":     np.array([-30, -15, 0, 15, 30, 45, 60, 90]),
-            "arm_elevation_deg":   np.array([-20, -10, 0, 10, 20, 30]),
+            # Robotic arm geometry
+            "arm_reach_m":         np.array([2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0]),
+            "shoulder_yaw_deg":    np.array([-30, -15, 0, 15, 30, 45, 60, 90]),
+            "link_ratio":          np.array([0.3, 0.4, 0.5, 0.6, 0.7]),
 
             # Stack
-            "client_mass":         np.array([2000, 3000, 4000, 5000, 6000]),
-            "servicer_mass":       np.array([300, 400, 500]),
-            "panel_span_one_side": np.array([8, 10, 12, 15, 18]),
+            "client_mass":         np.array([1500, 2000, 2500, 3000, 3500]),
+            "servicer_mass":       np.array([700, 750, 800]),
+            "panel_span_one_side": np.array([12, 14, 16, 18]),
 
             # Operations
-            "firing_duration_s":   np.array([300, 600, 900, 1200, 1800]),
+            "firing_duration_s":   np.array([15000, 17500, 20000, 22000, 25000]),
             "mission_duration_yr": np.array([3, 5, 7, 10]),
             "panel_tracking_deg":  np.array([-30, -15, 0, 15, 30]),
         }
@@ -436,16 +690,24 @@ class CaseMatrixGenerator:
         return count
 
     @staticmethod
-    def case_to_objects(case: Dict) -> Tuple[ArmGeometry, StackConfig, OperationalParams]:
+    def case_to_objects(case: Dict) -> Tuple[RoboticArmGeometry, StackConfig, OperationalParams]:
         """Convert a flat case dict to the structured dataclass objects."""
-        arm = ArmGeometry(
-            arm_length=case.get("arm_length", 2.0),
-            azimuth_deg=case.get("arm_azimuth_deg", 0.0),
-            elevation_deg=case.get("arm_elevation_deg", 0.0),
-            cant_angle_deg=case.get("cant_angle_deg", 0.0),
+        reach = case.get("arm_reach_m", case.get("arm_length", 3.0))
+        ratio = case.get("link_ratio", 0.5)
+        arm = RoboticArmGeometry(
+            link1_length=reach * ratio,
+            link2_length=reach * (1.0 - ratio),
             pivot_offset_x=case.get("pivot_offset_x", 0.0),
             pivot_offset_y=case.get("pivot_offset_y", 0.0),
-            pivot_offset_z=case.get("pivot_offset_z", 0.5),
+            pivot_offset_z=case.get("pivot_offset_z", 0.0),
+            q0_min_deg=case.get("q0_min_deg", -180.0),
+            q0_max_deg=case.get("q0_max_deg",  180.0),
+            q1_min_deg=case.get("q1_min_deg", -90.0),
+            q1_max_deg=case.get("q1_max_deg",  90.0),
+            q2_min_deg=case.get("q2_min_deg", -150.0),
+            q2_max_deg=case.get("q2_max_deg",  150.0),
+            shoulder_yaw_deg=case.get("shoulder_yaw_deg", case.get("arm_azimuth_deg", 0.0)),
+            elbow_up=bool(case.get("elbow_up", True)),
         )
         stack = StackConfig(
             servicer_mass=case.get("servicer_mass", 400.0),
@@ -700,9 +962,12 @@ def generate_heatmaps(results: List[Dict],
 
     # Labels
     param_labels = {
-        "arm_length": "Arm Length [m]",
-        "arm_azimuth_deg": "Arm Azimuth [°]",
-        "arm_elevation_deg": "Arm Elevation [°]",
+        "arm_reach_m": "Arm Reach L1+L2 [m]",
+        "shoulder_yaw_deg": "Shoulder Yaw [°]",
+        "link_ratio": "Link Ratio L1/(L1+L2)",
+        "arm_length": "Arm Length [m]",          # legacy
+        "arm_azimuth_deg": "Arm Azimuth [°]",    # legacy
+        "arm_elevation_deg": "Arm Elevation [°]",  # legacy
         "client_mass": "Client Mass [kg]",
         "servicer_mass": "Servicer Mass [kg]",
         "panel_span_one_side": "Panel Span (one side) [m]",
@@ -713,6 +978,8 @@ def generate_heatmaps(results: List[Dict],
         "mean_erosion_um": "Mean Erosion Depth [µm]",
         "erosion_fraction": "Erosion Fraction of Thickness",
         "min_panel_distance_m": "Min Panel Distance [m]",
+        "ik_feasible": "IK Feasible",
+        "arm_collision": "Arm Collision with Bus",
     }
 
     ax.set_xlabel(param_labels.get(param_x, param_x), fontsize=12, fontweight="bold")
@@ -814,15 +1081,20 @@ def generate_status_map(results: List[Dict],
                             fontweight="bold", color="white")
 
     param_labels = {
-        "arm_length": "Arm Length [m]",
-        "arm_azimuth_deg": "Arm Azimuth [°]",
-        "arm_elevation_deg": "Arm Elevation [°]",
+        "arm_reach_m": "Arm Reach L1+L2 [m]",
+        "shoulder_yaw_deg": "Shoulder Yaw [°]",
+        "link_ratio": "Link Ratio L1/(L1+L2)",
+        "arm_length": "Arm Length [m]",          # legacy
+        "arm_azimuth_deg": "Arm Azimuth [°]",    # legacy
+        "arm_elevation_deg": "Arm Elevation [°]",  # legacy
         "client_mass": "Client Mass [kg]",
         "servicer_mass": "Servicer Mass [kg]",
         "panel_span_one_side": "Panel Span (one side) [m]",
         "firing_duration_s": "Firing Duration [s]",
         "mission_duration_yr": "Mission Duration [yr]",
         "panel_tracking_deg": "Panel Sun-Tracking Angle [°]",
+        "ik_feasible": "IK Feasible",
+        "arm_collision": "Arm Collision with Bus",
     }
 
     ax.set_xlabel(param_labels.get(param_x, param_x), fontsize=12, fontweight="bold")
@@ -892,24 +1164,24 @@ def run_demo():
     # --- Define sweep ---
     gen = pipeline.generator
     # Reduce ranges for demo
-    gen.set_param_range("arm_length", np.arange(2.0, 3.5, 0.5))
+    gen.set_param_range("arm_length", np.arange(1.0, 4.5, 0.5))
     gen.set_param_range("arm_azimuth_deg", np.arange(-30, 95, 15))
     gen.set_param_range("arm_elevation_deg", np.array([-10, 0, 10, 20]))
-    gen.set_param_range("panel_span_one_side", np.array([10, 12, 15, 18, 20]))
-    gen.set_param_range("firing_duration_s", np.array([3000, 6000, 9000, 12000, 18000]))
+    gen.set_param_range("panel_span_one_side", np.array([8, 10, 12, 15, 18]))
+    gen.set_param_range("firing_duration_s", np.array([300, 600, 900, 1200, 1800]))
     gen.set_param_range("mission_duration_yr", np.array([3, 5, 7, 10]))
     gen.set_param_range("client_mass", np.array([2000, 3500, 5000]))
-    gen.set_param_range("servicer_mass", np.array([530]))
+    gen.set_param_range("servicer_mass", np.array([400]))
     gen.set_param_range("panel_tracking_deg", np.array([-15, 0, 15]))
 
     # --- Sweep 1: Arm length vs Arm azimuth ---
     print("\n[SWEEP 1] Arm Length vs Arm Azimuth")
     fixed1 = {
         "arm_elevation_deg": 0.0,
-        "client_mass": 3000.0,
-        "servicer_mass": 530.0,
-        "panel_span_one_side": 16.0,
-        "firing_duration_s": 9000.0,
+        "client_mass": 3500.0,
+        "servicer_mass": 400.0,
+        "panel_span_one_side": 12.0,
+        "firing_duration_s": 600.0,
         "mission_duration_yr": 5.0,
         "panel_tracking_deg": 0.0,
     }
@@ -920,12 +1192,12 @@ def run_demo():
     # --- Sweep 2: Panel span vs Mission duration ---
     print("\n[SWEEP 2] Panel Span vs Mission Duration")
     fixed2 = {
-        "arm_length": 2.0,
+        "arm_length": 2.5,
         "arm_azimuth_deg": 0.0,
         "arm_elevation_deg": 0.0,
-        "client_mass": 3000.0,
-        "servicer_mass": 530.0,
-        "firing_duration_s": 9000.0,
+        "client_mass": 3500.0,
+        "servicer_mass": 400.0,
+        "firing_duration_s": 600.0,
         "panel_tracking_deg": 0.0,
     }
     cases2 = gen.generate_reduced_matrix(fixed2, ["panel_span_one_side", "mission_duration_yr"])
@@ -935,11 +1207,11 @@ def run_demo():
     # --- Sweep 3: Firing duration vs Arm elevation ---
     print("\n[SWEEP 3] Firing Duration vs Arm Elevation")
     fixed3 = {
-        "arm_length": 2.0,
+        "arm_length": 2.5,
         "arm_azimuth_deg": 0.0,
-        "client_mass": 3000.0,
-        "servicer_mass": 530.0,
-        "panel_span_one_side": 16.0,
+        "client_mass": 3500.0,
+        "servicer_mass": 400.0,
+        "panel_span_one_side": 12.0,
         "mission_duration_yr": 5.0,
         "panel_tracking_deg": 0.0,
     }
@@ -948,7 +1220,7 @@ def run_demo():
     results3 = pipeline.run_sweep(cases3, verbose=True)
 
     # --- Generate heatmaps ---
-    output_dir = "/home/karan.anand/Documents/PythonScripts/ThrusterArmWorkspaceAnalysis/pipeline_output/"
+    output_dir = "/Users/karan94/Desktop/ThrusterArmWorkspaceAnalysis/plumePipeline"
     os.makedirs(output_dir, exist_ok=True)
 
     print("\n[GENERATING HEATMAPS]")

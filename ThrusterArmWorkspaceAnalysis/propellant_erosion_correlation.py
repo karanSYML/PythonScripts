@@ -30,7 +30,7 @@ import warnings
 
 # Import the base pipeline
 from plume_impingement_pipeline import (
-    ThrusterParams, ArmGeometry, StackConfig, OperationalParams,
+    ThrusterParams, ArmGeometry, RoboticArmGeometry, StackConfig, OperationalParams,
     MaterialParams, GeometryEngine, ErosionEstimator
 )
 
@@ -50,7 +50,7 @@ class StationkeepingBudget:
     nssk_dv_per_year: float = 55.0       # m/s/yr  (dominant, ~46-53 for GEO)
 
     # East-West stationkeeping (longitude maintenance)
-    ewsk_dv_per_year: float = 1.5        # m/s/yr  (small, ~1-5 depending on slot)
+    ewsk_dv_per_year: float = 2.0        # m/s/yr  (small, ~1-5 depending on slot)
 
     # Momentum management (wheel desaturation via thrusters)
     momentum_dv_per_year: float = 0.5    # m/s/yr
@@ -230,11 +230,14 @@ class COGTracker:
         self.prop = prop_config
 
     def servicer_origin_in_client_frame(self) -> np.ndarray:
-        """Servicer geometric centre position in client body frame."""
+        """Servicer geometric centre in client body frame.
+        Servicer docks below client on the Z- (earth-facing) face via the LAR.
+        """
         return np.array([
             self.stack.dock_offset_x,
             0.0,
-            self.stack.client_bus_z / 2.0 + self.stack.servicer_bus_z / 2.0
+            -(self.stack.client_bus_z / 2.0 + self.stack.lar_offset_z
+              + self.stack.servicer_bus_z / 2.0)
             + self.stack.dock_offset_z
         ])
 
@@ -670,10 +673,11 @@ class PropellantErosionSweep:
         for prop_kg in propellant_range_kg:
             for arm_len in arm_length_range_m:
                 count += 1
-                arm = ArmGeometry(
-                    arm_length=float(arm_len),
-                    azimuth_deg=arm_azimuth_deg,
-                    elevation_deg=arm_elevation_deg,
+                reach = float(arm_len)
+                arm = RoboticArmGeometry(
+                    link1_length=reach * 0.5,
+                    link2_length=reach * 0.5,
+                    shoulder_yaw_deg=arm_azimuth_deg,
                 )
                 prop_config = PropellantConfig(
                     propellant_loaded_kg=float(prop_kg),
@@ -1060,7 +1064,7 @@ def run_demo():
     print("  PROPELLANT BUDGET ↔ EROSION CORRELATION PIPELINE")
     print("=" * 70)
 
-    output_dir = "/home/karan.anand/Documents/PythonScripts/ThrusterArmWorkspaceAnalysis/output_prop_correlation"
+    output_dir = "/Users/karan94/Desktop/ThrusterArmWorkspaceAnalysis/propellantCorrelation"
     os.makedirs(output_dir, exist_ok=True)
 
     # --- Configuration ---
