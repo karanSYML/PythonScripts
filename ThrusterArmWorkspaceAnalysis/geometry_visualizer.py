@@ -64,11 +64,11 @@ from plume_impingement_pipeline import (
 # ─── Default stack & thruster ──────────────────────────────────────────────────
 
 STACK = StackConfig(
-    servicer_mass=400.0,
-    servicer_bus_x=1.0, servicer_bus_y=1.0, servicer_bus_z=1.0,
-    client_mass=3000.0,
-    client_bus_x=2.5,  client_bus_y=2.2,  client_bus_z=3.0,
-    panel_span_one_side=12.0, panel_width=2.5,
+    servicer_mass=750.0,
+    servicer_bus_x=0.9, servicer_bus_y=1.5, servicer_bus_z=0.8,
+    client_mass=2500.0,
+    client_bus_x=2.3,  client_bus_y=3.0,  client_bus_z=5.0,
+    panel_span_one_side=16.0, panel_width=2.5,
     lar_offset_z=0.05,
 )
 THRUSTER = ThrusterParams()
@@ -225,9 +225,15 @@ def set_equal_aspect(ax, pts):
     pts = np.array(pts)
     mid   = (pts.max(axis=0) + pts.min(axis=0)) / 2.0
     half  = max(pts.max(axis=0) - pts.min(axis=0)) / 2.0 * 1.15 + 0.3
-    ax.set_xlim(mid[0] - half, mid[0] + half)
-    ax.set_ylim(mid[1] - half, mid[1] + half)
-    ax.set_zlim(mid[2] - half, mid[2] + half)
+    # ax.set_xlim(mid[0] - half, mid[0] + half)
+    # ax.set_ylim(mid[1] - half, mid[1] + half)
+    # ax.set_zlim(mid[2] - half, mid[2] + half)
+    
+    # Set manually to visualize the movement of the Arm
+    ax.set_xlim(-2.5, 2.5)
+    ax.set_ylim(-2.5, 2.5)
+    ax.set_zlim(-3.0, 3.0)
+
     try:
         ax.set_box_aspect([1, 1, 1])   # matplotlib ≥ 3.3
     except AttributeError:
@@ -506,8 +512,8 @@ def main():
     state = {
         "yaw_deg":       90.0,   # arm extends in +Y (orbit-normal)
         "elev_deg":       0.0,   # horizontal → arm sits just below client
-        "reach_m":        4.0,
-        "link_ratio":     0.5,
+        "reach_m":        2.62,
+        "link_ratio":     0.75,
         "tracking_deg":   0.0,
         "elbow_up":      True,
         "show_flux":     False,
