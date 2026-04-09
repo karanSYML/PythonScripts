@@ -938,7 +938,7 @@ def generate_heatmaps(results: List[Dict],
         try:
             cs = ax.contour(X_grid, Y_grid, Z, levels=[thickness_um],
                             colors="white", linewidths=2.5, linestyles="--")
-            ax.clabel(cs, fmt=f"{{:.0f}} µm (FAIL)", fontsize=9, colors="white")
+            ax.clabel(cs, fmt=f"%.0f µm (FAIL)", fontsize=9, colors="white")
         except Exception:
             pass  # contour may fail if all values on one side
 
@@ -946,7 +946,7 @@ def generate_heatmaps(results: List[Dict],
         try:
             cs2 = ax.contour(X_grid, Y_grid, Z, levels=[0.5 * thickness_um],
                              colors="white", linewidths=1.5, linestyles=":")
-            ax.clabel(cs2, fmt=f"{{:.0f}} µm (MARGINAL)", fontsize=8, colors="white")
+            ax.clabel(cs2, fmt=f"%.0f µm (MARGINAL)", fontsize=8, colors="white")
         except Exception:
             pass
 
@@ -1220,7 +1220,7 @@ def run_demo():
     results3 = pipeline.run_sweep(cases3, verbose=True)
 
     # --- Generate heatmaps ---
-    output_dir = "/Users/karan94/Desktop/ThrusterArmWorkspaceAnalysis/plumePipeline"
+    output_dir = "/home/karan.anand/Documents/PythonScripts/ThrusterArmWorkspaceAnalysis/pipeline_output"
     os.makedirs(output_dir, exist_ok=True)
 
     print("\n[GENERATING HEATMAPS]")

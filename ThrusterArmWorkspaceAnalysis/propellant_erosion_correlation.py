@@ -1064,7 +1064,7 @@ def run_demo():
     print("  PROPELLANT BUDGET ↔ EROSION CORRELATION PIPELINE")
     print("=" * 70)
 
-    output_dir = "/Users/karan94/Desktop/ThrusterArmWorkspaceAnalysis/propellantCorrelation"
+    output_dir = "/home/karan.anand/Documents/PythonScripts/ThrusterArmWorkspaceAnalysis/propellantCorrelation"
     os.makedirs(output_dir, exist_ok=True)
 
     # --- Configuration ---
