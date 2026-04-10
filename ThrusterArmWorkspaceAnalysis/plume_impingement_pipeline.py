@@ -169,7 +169,7 @@ class StackConfig:
     # Solar panels (client) – modelled as flat rectangles
     panel_span_one_side: float = 16.0   # m  from bus edge to panel tip
     panel_width: float = 2.2            # m  (along orbit-normal)
-    panel_hinge_offset_y: float = -1.0   # m  offset of hinge line from bus centre-y
+    panel_hinge_offset_y: float = 1.0   # m  offset of hinge line from bus centre-y
     panel_cant_angle_deg: float = 0.0   # deg  cant about hinge axis
 
     # Docking interface

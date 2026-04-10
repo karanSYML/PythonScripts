@@ -92,7 +92,7 @@ def panel_grid(stack: StackConfig, tracking_deg: float = 0.0,
     normal : (3,) unit surface normal (sun-facing side)
     """
     track = np.radians(tracking_deg)
-    zi_base = stack.client_bus_z / 2.0
+    zi_base = -stack.client_bus_z / 3.0 
     hw = stack.panel_width / 2.0
     pts = []
 
@@ -172,7 +172,7 @@ def draw_box(ax, center, dims, edge_color, face_color=None,
 def draw_panel_faces(ax, stack, tracking_deg=0.0):
     """Draw both solar panels as translucent gold quads."""
     track = np.radians(tracking_deg)
-    zi = stack.client_bus_z / 2.0
+    zi = 0.0 #stack.client_bus_z / 2.0 
     hw = stack.panel_width / 2.0
 
     def corner(x, y):
@@ -531,11 +531,11 @@ def main():
         ax_ratio = fig.add_axes([0.08, 0.070, 0.52, 0.022])
         ax_track = fig.add_axes([0.08, 0.035, 0.52, 0.022])
 
-        sl_yaw   = Slider(ax_yaw,   "Shoulder Yaw  q₀ [°]",    -180, 180,  valinit=90,   valstep=5)
-        sl_elev  = Slider(ax_elev,  "Shoulder Elev  φ [°]",      -80,  80,  valinit=30,   valstep=5)
-        sl_reach = Slider(ax_reach, "Arm Reach  L₁+L₂ [m]",      1.0,  8.0, valinit=4.0, valstep=0.25)
-        sl_ratio = Slider(ax_ratio, "Link Ratio  L₁/(L₁+L₂)",    0.2,  0.8, valinit=0.5, valstep=0.05)
-        sl_track = Slider(ax_track, "Panel Track  α [°]",         -45,  45,  valinit=0.0, valstep=5)
+        sl_yaw   = Slider(ax_yaw,   "Shoulder Yaw  q₀ [°]",    0, 270,  valinit=90,   valstep=5)
+        sl_elev  = Slider(ax_elev,  "Shoulder Elev  φ [°]",      -5,  5,  valinit=0,   valstep=1)
+        sl_reach = Slider(ax_reach, "Arm Reach  L₁+L₂ [m]",      1.0,  3.0, valinit=2.6, valstep=0.2)
+        sl_ratio = Slider(ax_ratio, "Link Ratio  L₁/(L₁+L₂)",    0.5,  0.8, valinit=0.5, valstep=0.05)
+        sl_track = Slider(ax_track, "Panel Track  α [°]",         -90,  90,  valinit=0.0, valstep=5)
 
         def _on_slider(_val):
             state["yaw_deg"]      = sl_yaw.val
