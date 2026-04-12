@@ -9,3 +9,6 @@ refprop/REFPROP-cmake
 **/ThrusterArmAnalysis.md
 **/thruster_arm_urdf_spec.md
 **/*.mp4
+**/__pycache__/
+**/*.pyc
+**/*.pyo

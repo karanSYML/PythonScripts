@@ -53,8 +53,8 @@ material = MaterialParams(
 
 # GEO stationkeeping budget (NSSK dominant)
 sk_budget = StationkeepingBudget(
-    nssk_dv_per_year=50.0,
-    ewsk_dv_per_year=2.0,
+    nssk_dv_per_year=55.0,
+    ewsk_dv_per_year=1.5,
     momentum_dv_per_year=0.5,
     margin_fraction=0.10,
     nssk_manoeuvres_per_day=2,
