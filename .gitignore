@@ -12,3 +12,7 @@ refprop/REFPROP-cmake
 **/__pycache__/
 **/*.pyc
 **/*.pyo
+**/pipeline_runner_output/
+**/propellant_correlation_results/
+**/pareto_output/
+**/urdf_output/
