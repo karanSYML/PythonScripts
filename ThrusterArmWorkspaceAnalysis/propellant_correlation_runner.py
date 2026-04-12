@@ -31,6 +31,12 @@ SERVICER_DRY_MASS_KG  = 530.0
 XENON_LOADED_KG       = 140.0
 SERVICER_TOTAL_MASS   = SERVICER_DRY_MASS_KG + XENON_LOADED_KG   # 670 kg
 
+# Hardware-fixed arm geometry (supplier constraint)
+_L1          = 1.12
+_L2          = 1.40
+ARM_REACH_M  = _L1 + _L2            # 2.52 m  (L1+L2; bracket 0.35 m is separate)
+LINK_RATIO   = _L1 / ARM_REACH_M    # ≈ 0.4444
+
 OUTPUT_DIR = "./propellant_correlation_results"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
@@ -82,22 +88,23 @@ print("=" * 70)
 pipeline = PlumePipeline(thruster, material)
 gen = pipeline.generator
 
-gen.set_param_range("arm_reach_m",       np.array([2.0, 2.5, 3.0, 3.5, 4.0, 5.0]))
-gen.set_param_range("shoulder_yaw_deg",  np.array([-30, -15, 0, 15, 30, 45, 60, 90]))
-gen.set_param_range("link_ratio",        np.array([0.4, 0.5, 0.6]))
+gen.set_param_range("shoulder_yaw_deg",
+                    np.arange(0.0, 271.0, 15.0))   # full J1 range: 0–270°
 
 fixed_params = {
-    "client_mass":          3500.0,
-    "servicer_mass":        SERVICER_TOTAL_MASS,
-    "panel_span_one_side":  12.0,
-    "firing_duration_s":    25000.0,
-    "mission_duration_yr":  5.0,
-    "panel_tracking_deg":   0.0,
+    "arm_reach_m":         ARM_REACH_M,   # hardware-fixed: L1+L2 = 2.52 m
+    "link_ratio":          LINK_RATIO,    # hardware-fixed: L1/(L1+L2) ≈ 0.444
+    "client_mass":         3500.0,
+    "servicer_mass":       SERVICER_TOTAL_MASS,
+    "panel_span_one_side": 16.0,
+    "firing_duration_s":   25000.0,
+    "mission_duration_yr": 5.0,
+    "panel_tracking_deg":  0.0,
 }
 
 cases = gen.generate_reduced_matrix(
     fixed_params,
-    sweep_params=["arm_reach_m", "shoulder_yaw_deg", "link_ratio"],
+    sweep_params=["shoulder_yaw_deg"],
 )
 print(f"\nTotal cases to screen: {len(cases)}")
 
