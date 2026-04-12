@@ -229,21 +229,20 @@ class COGTracker:
         self.stack = stack
         self.prop = prop_config
 
-    def servicer_origin_in_client_frame(self) -> np.ndarray:
-        """Servicer geometric centre in client body frame.
-        Servicer docks below client on the Z- (earth-facing) face via the LAR.
+    def servicer_origin_in_lar_frame(self) -> np.ndarray:
+        """Servicer geometric centre in LAR frame.
+        Origin: LAR interface. +Z = nadir, −Z = anti-earth. Servicer at −Z.
         """
         return np.array([
             self.stack.dock_offset_x,
             0.0,
-            -(self.stack.client_bus_z / 2.0 + self.stack.lar_offset_z
-              + self.stack.servicer_bus_z / 2.0)
+            -(self.stack.lar_offset_z + self.stack.servicer_bus_z / 2.0)
             + self.stack.dock_offset_z
         ])
 
-    def tank_position_in_client_frame(self) -> np.ndarray:
-        """Propellant tank CG in client body frame."""
-        serv_origin = self.servicer_origin_in_client_frame()
+    def tank_position_in_lar_frame(self) -> np.ndarray:
+        """Propellant tank CG in LAR frame."""
+        serv_origin = self.servicer_origin_in_lar_frame()
         return serv_origin + np.array([
             self.prop.tank_position_x,
             self.prop.tank_position_y,
@@ -251,21 +250,21 @@ class COGTracker:
         ])
 
     def cog_at_propellant_level(self, propellant_remaining_kg: float) -> np.ndarray:
-        """Stack COG for a given propellant fill level.
+        """Stack COG for a given propellant fill level in LAR frame.
 
         The servicer dry mass + client mass have fixed CG positions.
         The propellant mass is at the tank position and decreases over time.
         """
-        # Client CG at origin
-        client_cg = np.array([0.0, 0.0, 0.0])
+        # Client CG in LAR frame: client centre is client_bus_z/2 in +Z (nadir)
+        client_cg = np.array([0.0, 0.0, self.stack.client_bus_z / 2.0])
         client_mass = self.stack.client_mass
 
         # Servicer dry mass (total servicer mass minus initial propellant)
         servicer_dry = self.stack.servicer_mass - self.prop.propellant_loaded_kg
-        servicer_dry_cg = self.servicer_origin_in_client_frame()
+        servicer_dry_cg = self.servicer_origin_in_lar_frame()
 
         # Propellant mass at tank position
-        tank_cg = self.tank_position_in_client_frame()
+        tank_cg = self.tank_position_in_lar_frame()
         prop_mass = propellant_remaining_kg
 
         total_mass = client_mass + servicer_dry + prop_mass
@@ -357,9 +356,11 @@ class TimeResolvedErosion:
             panel_cant_angle_deg=self.stack.panel_cant_angle_deg,
             dock_offset_z=self.stack.dock_offset_z,
             dock_offset_x=self.stack.dock_offset_x,
-            antenna_diameter=self.stack.antenna_diameter,
-            antenna_offset_x=self.stack.antenna_offset_x,
-            antenna_offset_z=self.stack.antenna_offset_z,
+            antenna_diameter_east=self.stack.antenna_diameter_east,
+            antenna_diameter_west=self.stack.antenna_diameter_west,
+            antenna_x_separation=self.stack.antenna_x_separation,
+            antenna_z_offset=self.stack.antenna_z_offset,
+            antenna_mass=self.stack.antenna_mass,
         )
         return adjusted_stack
 
@@ -424,9 +425,8 @@ class TimeResolvedErosion:
             # Current stack state
             current_stack = self._make_stack_at_propellant_level(prop_remaining)
             current_mass = current_stack.servicer_mass + current_stack.client_mass
-            cog = current_stack.stack_cog()
 
-            # Geometry at current COG
+            # Geometry at current propellant level
             geo = GeometryEngine(self.arm, current_stack)
 
             # --- NSSK erosion for this time step ---
@@ -435,6 +435,9 @@ class TimeResolvedErosion:
                 sun_tracking_angle_deg=nssk_tracking,
                 n_spanwise=30, n_chordwise=6
             )
+
+            # Full stack CoG including arm (computed after thruster_position() is cached)
+            cog = geo.stack_cog_with_arm()
 
             # Firing duration per NSSK manoeuvre at current mass
             nssk_dv_per_manoeuvre = nssk_dv_per_day / max(self.sk.nssk_manoeuvres_per_day, 1)
@@ -609,7 +612,8 @@ class PropellantErosionSweep:
                         'client_mass', 'client_bus_x', 'client_bus_y', 'client_bus_z',
                         'panel_span_one_side', 'panel_width', 'panel_hinge_offset_y',
                         'panel_cant_angle_deg', 'dock_offset_z', 'dock_offset_x',
-                        'antenna_diameter', 'antenna_offset_x', 'antenna_offset_z'
+                        'antenna_diameter_east', 'antenna_diameter_west',
+                        'antenna_x_separation', 'antenna_z_offset', 'antenna_mass',
                     ]}
                 )
                 # Servicer mass = dry mass + propellant
@@ -691,7 +695,8 @@ class PropellantErosionSweep:
                         'client_mass', 'client_bus_x', 'client_bus_y', 'client_bus_z',
                         'panel_span_one_side', 'panel_width', 'panel_hinge_offset_y',
                         'panel_cant_angle_deg', 'dock_offset_z', 'dock_offset_x',
-                        'antenna_diameter', 'antenna_offset_x', 'antenna_offset_z'
+                        'antenna_diameter_east', 'antenna_diameter_west',
+                        'antenna_x_separation', 'antenna_z_offset', 'antenna_mass',
                     ]}
                 )
 

@@ -406,7 +406,7 @@ def export_openplume_cases(
     for idx, result in enumerate(openplume_cases):
         # ── Reconstruct StackConfig from case sweep parameters ─────────────
         arm, stack, ops = CaseMatrixGenerator.case_to_objects(result)
-        serv_origin  = stack.servicer_origin_in_client_frame()
+        serv_origin  = stack.servicer_origin_in_lar_frame()
         tracking_deg = float(result.get("panel_tracking_deg", 0.0))
 
         # ── Thruster position and COG from stored pipeline results ─────────

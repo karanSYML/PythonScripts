@@ -9,6 +9,18 @@ Modules:
   2. Analytical Pre-Screener  – fast erosion estimates (inverse-square + sputter model)
   3. Heatmap Visualizer       – multi-dimensional interactive dashboard
 
+Coordinate Frame Convention (LAR frame)
+----------------------------------------
+  Origin : LAR interface — the mechanical docking interface between servicer and client.
+  +X     : North  (direction of North solar panel)
+  +Y     : East   (direction of East antenna face)
+  +Z     : Nadir  (toward Earth)
+  −Z     : Anti-Earth (servicer side)
+
+  The client bus extends in the +Z (nadir) direction from the LAR.
+  The servicer hangs on the −Z (anti-earth) side of the LAR.
+  All positions in this file are expressed in the LAR frame unless noted otherwise.
+
 Author: Plume Impingement Analysis Framework
 """
 
@@ -51,37 +63,54 @@ class ArmGeometry:
 
 @dataclass
 class RoboticArmGeometry:
-    """3-DOF robotic arm: shoulder yaw (q0) + shoulder pitch (q1) + elbow pitch (q2).
+    """3-DOF robotic arm: J1 shoulder yaw (q0) + J2 elbow pitch (q1) + J3 wrist pitch (q2).
 
-    Joint convention
-    ----------------
-    q0  Shoulder Yaw   – rotation about the body Z-axis at the pivot
-    q1  Shoulder Pitch – tilts the upper arm up (+) or down (-) from horizontal
-    q2  Elbow Pitch    – bends the forearm relative to the upper arm (same vertical plane)
+    Physical structure (per URDF spec)
+    ------------------------------------
+    J1  Shoulder Yaw  – revolute about Z at pivot base          → Link 1 (L1)
+    J2  Elbow Pitch   – revolute ⊥ to Link 1 at elbow          → Link 2 (L2)
+    J3  Wrist Pitch   – revolute ⊥ to Link 2 at wrist          → Bracket (L3)
+    Thruster frame    – fixed at end of bracket
 
-    Forward kinematics (client body frame)
-    ----------------------------------------
-    u_rad     = [cos(q0), sin(q0), 0]          # horizontal direction after yaw
-    d_upper   = cos(q1)*u_rad + sin(q1)*Z_hat  # upper-arm unit vector
-    d_lower   = cos(q1+q2)*u_rad + sin(q1+q2)*Z_hat  # forearm unit vector
+    Link properties (baseline from URDF spec)
+    ------------------------------------------
+    Link 1  : 1.12 m, 10 kg  (shoulder → elbow)
+    Link 2  : 1.40 m, 10 kg  (elbow → wrist)
+    Bracket : 0.35 m,  3 kg  (wrist → thruster exit)
+    Total reach (straight) : 2.87 m
 
-    p_elbow     = pivot + L1 * d_upper
-    p_thruster  = p_elbow + L2 * d_lower
+    Forward kinematics (LAR frame)
+    --------------------------------
+    u_rad      = [cos(q0), sin(q0), 0]                        # azimuth after yaw
+    d_upper    = cos(q1)*u_rad + sin(q1)*Z_hat                # Link 1 direction
+    d_lower    = cos(q1+q2)*u_rad + sin(q1+q2)*Z_hat          # Link 2 + bracket direction
+
+    p_elbow    = pivot + L1 * d_upper
+    p_wrist    = p_elbow + L2 * d_lower
+    p_thruster = p_wrist  + L3 * d_lower   (bracket extends in same direction as Link 2)
+
+    IK note: solved as a 2R planar arm using L1 and (L2+L3) as effective links,
+    targeting the thruster exit point.  This is exact when the bracket is collinear
+    with Link 2 (i.e. no additional wrist bend beyond q2).
     """
-    link1_length: float = 1.2        # m  shoulder → elbow
-    link2_length: float = 1.5        # m  elbow → thruster exit
+    link1_length:   float = 1.12   # m   shoulder → elbow   (J2 pivot)
+    link1_mass:     float = 10.0   # kg
+    link2_length:   float = 1.40   # m   elbow    → wrist   (J3 pivot)
+    link2_mass:     float = 10.0   # kg
+    bracket_length: float = 0.35   # m   wrist    → thruster exit
+    bracket_mass:   float = 3.0    # kg
 
     # Pivot position offset from the servicer geometric centre
-    pivot_offset_x: float = 0.0 # 0.174      # m
-    pivot_offset_y: float = 0.0 #-0.299      # m
-    pivot_offset_z: float = 0.0 #+1.159      # m  (0 = at servicer Z+ face, when pivot is computed externally)
+    pivot_offset_x: float = 0.0    # m
+    pivot_offset_y: float = 0.0    # m
+    pivot_offset_z: float = 0.0    # m  (0 = at servicer +Z face)
 
     # Joint angle limits [deg]
-    q0_min_deg: float =  0.0       # shoulder yaw limits
-    q0_max_deg: float =  270.0
-    q1_min_deg: float =  0.0        # shoulder pitch limits
-    q1_max_deg: float =  235.0
-    q2_min_deg: float = -36.0       # elbow pitch limits
+    q0_min_deg: float =   0.0    # J1 shoulder yaw
+    q0_max_deg: float = 270.0
+    q1_min_deg: float =   0.0    # J2 elbow pitch
+    q1_max_deg: float = 235.0
+    q2_min_deg: float = -36.0    # J3 wrist pitch
     q2_max_deg: float =  99.0
 
     # Desired shoulder yaw (primary sweep parameter, set before IK solve)
@@ -90,40 +119,46 @@ class RoboticArmGeometry:
     elbow_up: bool = True
 
     def arm_reach(self) -> float:
-        """Total arm reach (straight) [m]."""
-        return self.link1_length + self.link2_length
+        """Total arm reach fully extended (L1 + L2 + bracket) [m]."""
+        return self.link1_length + self.link2_length + self.bracket_length
+
+    def arm_mass(self) -> float:
+        """Total arm mass [kg]."""
+        return self.link1_mass + self.link2_mass + self.bracket_mass
 
     def forward_kinematics(self, pivot: np.ndarray,
                            q0: float, q1: float, q2: float
-                           ) -> Tuple[np.ndarray, np.ndarray]:
-        """Return (p_elbow, p_thruster) given joint angles in radians."""
+                           ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+        """Return (p_elbow, p_wrist, p_thruster) given joint angles in radians."""
         u_rad = np.array([np.cos(q0), np.sin(q0), 0.0])
         u_z   = np.array([0.0, 0.0, 1.0])
-        d_upper = np.cos(q1) * u_rad + np.sin(q1) * u_z
-        d_lower = np.cos(q1 + q2) * u_rad + np.sin(q1 + q2) * u_z
-        p_elbow    = pivot + self.link1_length * d_upper
-        p_thruster = p_elbow + self.link2_length * d_lower
-        return p_elbow, p_thruster
+        d_upper = np.cos(q1) * u_rad + np.sin(q1) * u_z          # Link 1 direction
+        d_lower = np.cos(q1 + q2) * u_rad + np.sin(q1 + q2) * u_z  # Link 2 + bracket direction
+        p_elbow    = pivot  + self.link1_length   * d_upper
+        p_wrist    = p_elbow + self.link2_length  * d_lower
+        p_thruster = p_wrist  + self.bracket_length * d_lower
+        return p_elbow, p_wrist, p_thruster
 
     def inverse_kinematics(self, pivot: np.ndarray, target: np.ndarray,
                            elbow_up: bool = True
                            ) -> Optional[Tuple[float, float, float]]:
-        """Closed-form IK for yaw-pitch-pitch arm.
+        """Closed-form IK for yaw-pitch-pitch arm targeting the thruster exit point.
 
+        Treats L1 and (L2 + bracket) as the two effective 2R planar links.
         Returns (q0, q1, q2) in radians, or None if target is unreachable.
-        Uses the standard 2R planar IK in the vertical plane defined by q0.
         """
-        L1, L2 = self.link1_length, self.link2_length
+        L1 = self.link1_length
+        L2 = self.link2_length + self.bracket_length   # effective second link
         dv = target - pivot
 
-        # Shoulder yaw from horizontal projection
+        # J1: shoulder yaw from horizontal projection
         q0 = np.arctan2(dv[1], dv[0])
 
         # Horizontal reach and vertical offset
         r = np.sqrt(dv[0] ** 2 + dv[1] ** 2)
         z = dv[2]
 
-        # Cosine-rule for elbow angle
+        # Cosine-rule for elbow (J2) angle
         dist_sq = r ** 2 + z ** 2
         cos_q2 = (dist_sq - L1 ** 2 - L2 ** 2) / (2.0 * L1 * L2)
 
@@ -133,7 +168,7 @@ class RoboticArmGeometry:
         cos_q2 = np.clip(cos_q2, -1.0, 1.0)
         q2 = np.arccos(cos_q2) if elbow_up else -np.arccos(cos_q2)
 
-        # Shoulder pitch
+        # J2: elbow pitch
         alpha = np.arctan2(z, r)
         beta  = np.arctan2(L2 * np.sin(q2), L1 + L2 * np.cos(q2))
         q1 = alpha - beta
@@ -177,27 +212,62 @@ class StackConfig:
     dock_offset_z: float =-0.8          # m  servicer offset along Z from client centre
     dock_offset_x: float = 0.0          # m
 
-    # Antenna reflectors (simplified as discs)
-    antenna_diameter: float = 2.2       # m
-    antenna_offset_x: float = 0.0       # m  from client centre
-    antenna_offset_z: float = 1.8       # m  (earth-facing typically)
+    # Antenna reflectors – 4-dish model (spec §4)
+    # East face (+Y): E1 (−X side) and E2 (+X side), diameter 2.2 m
+    # West face (−Y): W1 (−X side) and W2 (+X side), diameter 2.5 m
+    # All dishes have their aperture normal pointing +Z (nadir-facing).
+    antenna_diameter_east: float = 2.2  # m  E1, E2
+    antenna_diameter_west: float = 2.5  # m  W1, W2
+    antenna_x_separation:  float = 1.5  # m  centre-to-centre along X
+    antenna_z_offset:      float = 0.8  # m  above bus centre (toward nadir)
+    antenna_mass:          float = 20.0 # kg per dish (all four identical)
 
-    def servicer_origin_in_client_frame(self) -> np.ndarray:
-        """Servicer geometric centre in client body frame.
-        Servicer docks on the client Z- (earth-facing) face via the LAR.
-        Z is positive anti-earth; servicer hangs below client.
+    def antenna_centers_in_lar_frame(self) -> Dict[str, np.ndarray]:
+        """Return the four dish centres in LAR frame.
+
+        Naming convention  →  face  |  X offset
+        ─────────────────────────────────────────
+        E1                →  +Y    |  −x_sep/2
+        E2                →  +Y    |  +x_sep/2
+        W1                →  −Y    |  −x_sep/2
+        W2                →  −Y    |  +x_sep/2
+
+        Z coordinate: client bus centre + antenna_z_offset
+          = client_bus_z/2 + antenna_z_offset  (nadir side)
+        Y coordinate: ±client_bus_y/2 (flush with bus face)
+        """
+        z = self.client_bus_z / 2.0 + self.antenna_z_offset
+        half_sep = self.antenna_x_separation / 2.0
+        y_east =  self.client_bus_y / 2.0
+        y_west = -self.client_bus_y / 2.0
+        return {
+            "E1": np.array([-half_sep,  y_east, z]),
+            "E2": np.array([ half_sep,  y_east, z]),
+            "W1": np.array([-half_sep,  y_west, z]),
+            "W2": np.array([ half_sep,  y_west, z]),
+        }
+
+    def servicer_origin_in_lar_frame(self) -> np.ndarray:
+        """Servicer geometric centre in LAR frame.
+        The servicer sits on the anti-earth side (−Z) of the LAR interface.
+        Distance from LAR to servicer centre = lar_offset_z + servicer_bus_z/2.
         """
         return np.array([
             self.dock_offset_x,
             0.0,
-            -(self.client_bus_z / 2.0 + self.lar_offset_z + self.servicer_bus_z / 2.0)
-            + self.dock_offset_z
+            -(self.lar_offset_z + self.servicer_bus_z / 2.0) + self.dock_offset_z
         ])
 
+    def client_origin_in_lar_frame(self) -> np.ndarray:
+        """Client bus centre in LAR frame.
+        Client extends in +Z (nadir) from LAR; centre is half a bus-height below LAR.
+        """
+        return np.array([0.0, 0.0, self.client_bus_z / 2.0])
+
     def stack_cog(self) -> np.ndarray:
-        """Combined centre of gravity in client body frame."""
-        servicer_cg = self.servicer_origin_in_client_frame()
-        client_cg = np.array([0.0, 0.0, 0.0])
+        """Combined centre of gravity in LAR frame."""
+        servicer_cg = self.servicer_origin_in_lar_frame()
+        client_cg = self.client_origin_in_lar_frame()
         total_mass = self.servicer_mass + self.client_mass
         return (self.client_mass * client_cg + self.servicer_mass * servicer_cg) / total_mass
 
@@ -278,7 +348,7 @@ class GeometryEngine:
 
     def _thruster_position_single_link(self) -> np.ndarray:
         """Legacy single-link arm (ArmGeometry)."""
-        servicer_origin = self.stack.servicer_origin_in_client_frame()
+        servicer_origin = self.stack.servicer_origin_in_lar_frame()
         pivot = np.array([
             servicer_origin[0] + self.arm.pivot_offset_x,
             servicer_origin[1] + self.arm.pivot_offset_y,
@@ -294,12 +364,12 @@ class GeometryEngine:
         return pivot + self.arm.arm_length * arm_dir
 
     def _pivot_position(self) -> np.ndarray:
-        """Pivot position in client frame (robotic arm)."""
-        servicer_origin = self.stack.servicer_origin_in_client_frame()
+        """Pivot position in LAR frame (robotic arm base)."""
+        servicer_origin = self.stack.servicer_origin_in_lar_frame()
         return np.array([
             servicer_origin[0] + self.arm.pivot_offset_x,
             servicer_origin[1] + self.arm.pivot_offset_y,
-            # Pivot is on servicer Z+ face (facing toward client Z- face)
+            # Pivot is on servicer +Z face — the face closest to the LAR (least negative Z)
             servicer_origin[2] + self.stack.servicer_bus_z / 2.0 + self.arm.pivot_offset_z
         ])
 
@@ -351,50 +421,52 @@ class GeometryEngine:
             if arm.within_joint_limits(q0, q1, q2):
                 self._ik_feasible = True
                 self._ik_joint_angles = (q0, q1, q2)
-                _, p_thruster = arm.forward_kinematics(pivot, q0, q1, q2)
+                _, _, p_thruster = arm.forward_kinematics(pivot, q0, q1, q2)
                 return p_thruster
 
         # Fallback: place thruster at target directly (joint-limit violation flagged)
         self._ik_joint_angles = ik_result  # may be None
         return target
 
-    def arm_link_positions(self) -> Tuple[np.ndarray, Optional[np.ndarray], np.ndarray]:
-        """Return (pivot, elbow_or_None, thruster) positions in client frame.
+    def arm_link_positions(self) -> Tuple[np.ndarray, Optional[np.ndarray],
+                                          Optional[np.ndarray], np.ndarray]:
+        """Return (pivot, p_elbow, p_wrist, p_thruster) in LAR frame.
 
-        For ArmGeometry (single link), elbow is None.
-        For RoboticArmGeometry, all three are returned.
+        For ArmGeometry (single link), p_elbow and p_wrist are None.
+        For RoboticArmGeometry, all four points are returned.
         """
         if not isinstance(self.arm, RoboticArmGeometry):
             p_thruster = self.thruster_position()
-            return self._pivot_position() if hasattr(self, '_pivot_position') else p_thruster, None, p_thruster
+            return self._pivot_position(), None, None, p_thruster
 
         # Ensure _thruster_position_ik has been called
         p_thruster = self.thruster_position()
         pivot = self._pivot_pos
         if self._ik_joint_angles is not None:
             q0, q1, q2 = self._ik_joint_angles
-            p_elbow, _ = self.arm.forward_kinematics(pivot, q0, q1, q2)
+            p_elbow, p_wrist, _ = self.arm.forward_kinematics(pivot, q0, q1, q2)
         else:
-            p_elbow = pivot  # degenerate: IK failed
-        return pivot, p_elbow, p_thruster
+            p_elbow = pivot   # degenerate: IK failed
+            p_wrist = pivot
+        return pivot, p_elbow, p_wrist, p_thruster
 
     def check_arm_collision_with_client_bus(self) -> bool:
         """Return True if any arm link segment passes through the client bus box.
 
         Uses AABB slab intersection test for each link segment.
-        The client bus occupies:
-          X in [-bx/2, bx/2], Y in [-by/2, by/2], Z in [-bz/2, bz/2]
+        In LAR frame (+Z = nadir) the client bus occupies:
+          X in [-bx, +bx],  Y in [-by, +by],  Z in [0, client_bus_z]
         """
         stack = self.stack
         bx = stack.client_bus_x / 2.0
         by = stack.client_bus_y / 2.0
-        bz = stack.client_bus_z / 2.0
-        box_min = np.array([-bx, -by, -bz])
-        box_max = np.array([ bx,  by,  bz])
+        box_min = np.array([-bx, -by, 0.0])
+        box_max = np.array([ bx,  by, stack.client_bus_z])
 
-        pivot, p_elbow, p_thruster = self.arm_link_positions()
-        segments = [(pivot, p_elbow)] if p_elbow is not None else []
-        segments.append((pivot if p_elbow is None else p_elbow, p_thruster))
+        pivot, p_elbow, p_wrist, p_thruster = self.arm_link_positions()
+        # Build segment chain: pivot→elbow→wrist→thruster (skip None waypoints)
+        waypoints = [p for p in [pivot, p_elbow, p_wrist, p_thruster] if p is not None]
+        segments = list(zip(waypoints[:-1], waypoints[1:]))
 
         for (P0, P1) in segments:
             if _segment_intersects_aabb(P0, P1, box_min, box_max):
@@ -410,15 +482,58 @@ class GeometryEngine:
             self.thruster_position()
         return getattr(self, '_ik_feasible', False)
 
-    def thrust_direction(self) -> np.ndarray:
-        """Unit thrust vector in client body frame.
+    def stack_cog_with_arm(self) -> np.ndarray:
+        """Stack CoG including arm link masses in LAR frame.
 
-        The thrust direction is constrained to point *through* the stack COG
-        to minimise disturbance torques (ideal case).
+        Each link's CoG is taken as its geometric midpoint.
+        Must be called after thruster_position() so that _ik_joint_angles
+        and _pivot_pos are cached.  Falls back to stack.stack_cog() (client +
+        servicer only) if the arm is not a RoboticArmGeometry or IK has not
+        yet been solved.
+        """
+        base_cog   = self.stack.stack_cog()
+        stack_mass = self.stack.client_mass + self.stack.servicer_mass
+
+        if not isinstance(self.arm, RoboticArmGeometry):
+            return base_cog
+
+        angles = getattr(self, '_ik_joint_angles', None)
+        if angles is None:
+            return base_cog
+
+        q0, q1, q2 = angles
+        arm   = self.arm
+        pivot = self._pivot_pos
+
+        u_rad   = np.array([np.cos(q0), np.sin(q0), 0.0])
+        u_z     = np.array([0.0, 0.0, 1.0])
+        d_upper = np.cos(q1) * u_rad + np.sin(q1) * u_z
+        d_lower = np.cos(q1 + q2) * u_rad + np.sin(q1 + q2) * u_z
+
+        p_elbow = pivot   + arm.link1_length * d_upper
+        p_wrist = p_elbow + arm.link2_length * d_lower
+
+        # Midpoint of each link in LAR frame
+        cog_L1      = pivot   + (arm.link1_length   / 2.0) * d_upper
+        cog_L2      = p_elbow + (arm.link2_length   / 2.0) * d_lower
+        cog_bracket = p_wrist + (arm.bracket_length / 2.0) * d_lower
+
+        arm_cog  = (arm.link1_mass   * cog_L1 +
+                    arm.link2_mass   * cog_L2 +
+                    arm.bracket_mass * cog_bracket) / arm.arm_mass()
+        arm_mass = arm.arm_mass()
+
+        return (stack_mass * base_cog + arm_mass * arm_cog) / (stack_mass + arm_mass)
+
+    def thrust_direction(self) -> np.ndarray:
+        """Unit thrust vector in LAR frame.
+
+        The thrust direction is constrained to point *through* the full stack
+        CoG (including arm mass) to minimise disturbance torques (ideal case).
         If cant_angle != 0, a small offset from ideal is applied.
         """
         t_pos = self.thruster_position()
-        cog = self.stack.stack_cog()
+        cog = self.stack_cog_with_arm()
         ideal_dir = cog - t_pos
         ideal_dir = ideal_dir / np.linalg.norm(ideal_dir)
 
@@ -460,7 +575,8 @@ class GeometryEngine:
                     chord_frac = (j + 0.5) / n_chordwise - 0.5
                     yi = self.stack.panel_hinge_offset_y + chord_frac * self.stack.panel_width
 
-                    # Panel Z position: at top of client bus
+                    # Panel Z position: midplane of client bus in LAR frame
+                    # (+Z = nadir; client spans Z = 0 to Z = client_bus_z)
                     zi_base = self.stack.client_bus_z / 2.0
 
                     # Apply sun-tracking rotation about hinge (X-axis rotation)
@@ -475,11 +591,14 @@ class GeometryEngine:
         return np.array(points)
 
     def panel_normal(self, sun_tracking_angle_deg: float = 0.0) -> np.ndarray:
-        """Approximate panel surface normal (sun-facing side)."""
+        """Approximate panel surface normal (sun-facing / anti-earth side).
+        In LAR frame, anti-earth = −Z, so the untracked normal is [0, 0, −1].
+        """
         track = np.radians(sun_tracking_angle_deg)
         cant = np.radians(self.stack.panel_cant_angle_deg)
         total = track + cant
-        normal = np.array([0.0, -np.sin(total), np.cos(total)])
+        # −cos component: points toward −Z (anti-earth) when total = 0
+        normal = np.array([0.0, -np.sin(total), -np.cos(total)])
         return normal / np.linalg.norm(normal)
 
     def compute_flux_geometry(self, sun_tracking_angle_deg: float = 0.0,
@@ -518,6 +637,145 @@ class GeometryEngine:
             "plume_dir": plume_dir,
             "min_distance_m": np.min(distances),
             "min_distance_point": panel_pts[np.argmin(distances)],
+        }
+
+    def compute_antenna_flux_geometry(self) -> Dict[str, Dict]:
+        """Compute plume geometry for all four antenna dishes.
+
+        Each dish is treated as a point target at its centre.  The dish aperture
+        normal is +Z (nadir-facing), so the incidence angle is computed against
+        that fixed normal.
+
+        Returns a dict keyed by dish name ("E1", "E2", "W1", "W2"), each value
+        being a sub-dict with:
+          distance_m        – thruster-to-dish-centre distance
+          offaxis_deg       – off-axis angle from plume centreline
+          incidence_deg     – angle between plume ray and dish normal (+Z)
+          diameter_m        – dish diameter
+        """
+        t_pos    = self.thruster_position()
+        plume_dir = self.thrust_direction()
+        dish_normal = np.array([0.0, 0.0, 1.0])  # nadir-facing aperture
+
+        centers = self.stack.antenna_centers_in_lar_frame()
+        diameters = {
+            "E1": self.stack.antenna_diameter_east,
+            "E2": self.stack.antenna_diameter_east,
+            "W1": self.stack.antenna_diameter_west,
+            "W2": self.stack.antenna_diameter_west,
+        }
+
+        result = {}
+        for name, center in centers.items():
+            dvec = center - t_pos
+            dist = float(np.linalg.norm(dvec))
+            if dist < 1e-6:
+                result[name] = {"distance_m": 0.0, "offaxis_deg": 0.0,
+                                "incidence_deg": 0.0, "diameter_m": diameters[name]}
+                continue
+            dvec_unit = dvec / dist
+            cos_offaxis = float(np.clip(np.dot(dvec_unit, plume_dir), -1.0, 1.0))
+            offaxis_deg = float(np.degrees(np.arccos(cos_offaxis)))
+            # Incidence on dish surface: angle between incoming ray and aperture normal
+            cos_inc = float(np.abs(np.dot(dvec_unit, dish_normal)))
+            incidence_deg = float(np.degrees(np.arccos(np.clip(cos_inc, 0.0, 1.0))))
+            result[name] = {
+                "distance_m":    dist,
+                "offaxis_deg":   offaxis_deg,
+                "incidence_deg": incidence_deg,
+                "diameter_m":    diameters[name],
+            }
+        return result
+
+    def thrust_metrics(self, thrust_N: float = 1.0) -> Dict[str, float]:
+        """Compute thrust alignment and disturbance torque metrics.
+
+        Parameters
+        ----------
+        thrust_N : float
+            Thruster force in Newtons.
+
+        LAR-frame ideal manoeuvre directions
+        ─────────────────────────────────────
+        NSSK  – push North (+X) or South (−X):  ideal axis = X̂
+        EWSK  – push East  (+Y) or West  (−Y):  ideal axis = Ŷ
+
+        Background
+        ──────────
+        The actual thrust direction is aimed through the stack CoG, so the
+        moment arm relative to the *actual* thrust line is zero by construction.
+        The physically meaningful attitude disturbance is the torque you would
+        create if the arm geometry is used for an *ideal* NSSK or EWSK burn —
+        i.e. a force applied along ±X (NSSK) or ±Y (EWSK) at the thruster
+        position.  This represents the residual attitude torque that the AOCS
+        must compensate during the burn.
+
+        Geometry
+        ────────
+        r              = thruster_pos − CoG   (lever arm, LAR frame)
+        τ_nssk         = r × (thrust_N · nssk_hat)
+        τ_ewsk         = r × (thrust_N · ewsk_hat)
+
+        nssk_hat / ewsk_hat are chosen as the sign of X̂/Ŷ that is most aligned
+        with the actual thrust direction (minimises deviation).
+
+        Returned keys
+        ─────────────
+        nssk_deviation_deg       angle between actual thrust and ±X [0–90°]
+        ewsk_deviation_deg       angle between actual thrust and ±Y [0–90°]
+        thruster_cog_distance_m  |r|: distance from CoG to thruster [m]
+        nssk_moment_arm_m        √(r_y² + r_z²): ⊥ distance to X-axis  [m]
+        ewsk_moment_arm_m        √(r_x² + r_z²): ⊥ distance to Y-axis  [m]
+        nssk_torque_Nm           |τ_nssk| [N·m]
+        ewsk_torque_Nm           |τ_ewsk| [N·m]
+        torque_x_Nm              X component of τ_nssk [N·m]
+        torque_y_Nm              Y component of τ_nssk [N·m]
+        torque_z_Nm              Z component of τ_nssk [N·m]
+        """
+        t_pos      = self.thruster_position()
+        cog        = self.stack_cog_with_arm()
+        plume_dir  = self.thrust_direction()
+        thrust_dir = -plume_dir                     # unit actual thrust direction
+
+        # Lever arm: CoG → thruster exit
+        r = t_pos - cog
+        cog_dist = float(np.linalg.norm(r))
+
+        # Choose sign of ideal NSSK/EWSK direction aligned with actual thrust
+        nssk_sign = 1.0 if float(np.dot(thrust_dir, np.array([1.0, 0.0, 0.0]))) >= 0 else -1.0
+        ewsk_sign = 1.0 if float(np.dot(thrust_dir, np.array([0.0, 1.0, 0.0]))) >= 0 else -1.0
+        nssk_hat  = np.array([nssk_sign, 0.0, 0.0])
+        ewsk_hat  = np.array([0.0, ewsk_sign, 0.0])
+
+        # Thrust deviation angles (unsigned)
+        dot_x = float(abs(np.dot(thrust_dir, np.array([1.0, 0.0, 0.0]))))
+        nssk_deviation_deg = float(np.degrees(np.arccos(np.clip(dot_x, 0.0, 1.0))))
+        dot_y = float(abs(np.dot(thrust_dir, np.array([0.0, 1.0, 0.0]))))
+        ewsk_deviation_deg = float(np.degrees(np.arccos(np.clip(dot_y, 0.0, 1.0))))
+
+        # Moment arms: perpendicular distance from CoG to the ideal thrust line
+        # (i.e. the component of r perpendicular to the ideal direction)
+        # nssk: ideal along X → perp components are Y and Z
+        nssk_moment_arm = float(np.sqrt(r[1]**2 + r[2]**2))
+        # ewsk: ideal along Y → perp components are X and Z
+        ewsk_moment_arm = float(np.sqrt(r[0]**2 + r[2]**2))
+
+        # Disturbance torque vectors for each ideal burn direction
+        tau_nssk = thrust_N * np.cross(r, nssk_hat)  # r × F_nssk
+        tau_ewsk = thrust_N * np.cross(r, ewsk_hat)  # r × F_ewsk
+
+        return {
+            "nssk_deviation_deg":      nssk_deviation_deg,
+            "ewsk_deviation_deg":      ewsk_deviation_deg,
+            "thruster_cog_distance_m": cog_dist,
+            "nssk_moment_arm_m":       nssk_moment_arm,
+            "ewsk_moment_arm_m":       ewsk_moment_arm,
+            "nssk_torque_Nm":          float(np.linalg.norm(tau_nssk)),
+            "ewsk_torque_Nm":          float(np.linalg.norm(tau_ewsk)),
+            # NSSK torque components (for attitude control analysis)
+            "torque_x_Nm":             float(tau_nssk[0]),
+            "torque_y_Nm":             float(tau_nssk[1]),
+            "torque_z_Nm":             float(tau_nssk[2]),
         }
 
 
@@ -771,7 +1029,18 @@ class PlumePipeline:
             max_idx = np.argmax(erosions)
             mean_erosion = np.mean(erosions[erosions > 0]) if np.any(erosions > 0) else 0.0
 
-            # Classify
+            # Per-antenna erosion
+            ant_geo = geo.compute_antenna_flux_geometry()
+            ant_erosion: Dict[str, float] = {}
+            for ant_name, ant_data in ant_geo.items():
+                ant_erosion[ant_name] = self.estimator.cumulative_erosion_um(
+                    ant_data["distance_m"],
+                    ant_data["offaxis_deg"],
+                    ant_data["incidence_deg"],
+                    ops
+                )
+
+            # Classify (panel erosion drives status; antenna flagged separately)
             thickness = self.material.thickness_um
             if max_erosion >= thickness:
                 status = "FAIL"
@@ -782,6 +1051,8 @@ class PlumePipeline:
             else:
                 status = "SAFE"
 
+            cog = geo.stack_cog_with_arm()
+            thrust_m = geo.thrust_metrics(thrust_N=self.thruster.thrust_N)
             result = {
                 **case,
                 "max_erosion_um": float(max_erosion),
@@ -793,11 +1064,30 @@ class PlumePipeline:
                 "thruster_pos_x": float(geo_data["thruster_pos"][0]),
                 "thruster_pos_y": float(geo_data["thruster_pos"][1]),
                 "thruster_pos_z": float(geo_data["thruster_pos"][2]),
-                "cog_x": float(stack.stack_cog()[0]),
-                "cog_y": float(stack.stack_cog()[1]),
-                "cog_z": float(stack.stack_cog()[2]),
+                "cog_x": float(cog[0]),
+                "cog_y": float(cog[1]),
+                "cog_z": float(cog[2]),
                 "status": status,
                 "erosion_fraction": float(max_erosion / thickness),
+                # Per-antenna erosion (µm, lifetime)
+                "ant_E1_erosion_um": float(ant_erosion.get("E1", 0.0)),
+                "ant_E2_erosion_um": float(ant_erosion.get("E2", 0.0)),
+                "ant_W1_erosion_um": float(ant_erosion.get("W1", 0.0)),
+                "ant_W2_erosion_um": float(ant_erosion.get("W2", 0.0)),
+                "ant_E1_distance_m": float(ant_geo["E1"]["distance_m"]),
+                "ant_W1_distance_m": float(ant_geo["W1"]["distance_m"]),
+                "ant_max_erosion_um": float(max(ant_erosion.values())),
+                # Thrust alignment and disturbance torque (Step 5)
+                "nssk_deviation_deg":      thrust_m["nssk_deviation_deg"],
+                "ewsk_deviation_deg":      thrust_m["ewsk_deviation_deg"],
+                "thruster_cog_distance_m": thrust_m["thruster_cog_distance_m"],
+                "nssk_moment_arm_m":       thrust_m["nssk_moment_arm_m"],
+                "ewsk_moment_arm_m":       thrust_m["ewsk_moment_arm_m"],
+                "nssk_torque_Nm":          thrust_m["nssk_torque_Nm"],
+                "ewsk_torque_Nm":          thrust_m["ewsk_torque_Nm"],
+                "torque_x_Nm":             thrust_m["torque_x_Nm"],
+                "torque_y_Nm":             thrust_m["torque_y_Nm"],
+                "torque_z_Nm":             thrust_m["torque_z_Nm"],
             }
             results.append(result)
 

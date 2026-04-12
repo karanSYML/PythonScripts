@@ -77,8 +77,8 @@ THRUSTER = ThrusterParams()
 # ─── Pure geometry helpers (independent of GeometryEngine) ────────────────────
 
 def pivot_position(stack: StackConfig) -> np.ndarray:
-    """Pivot point in client body frame.  Placed on the servicer Z+ face."""
-    origin = stack.servicer_origin_in_client_frame()
+    """Pivot point in LAR frame. Placed on the servicer +Z face (toward LAR)."""
+    origin = stack.servicer_origin_in_lar_frame()
     return origin + np.array([0.0, 0.0, stack.servicer_bus_z / 2.0])
 
 
@@ -261,8 +261,7 @@ def redraw(ax, ax_info, stack: StackConfig,
     )
 
     pivot = pivot_position(stack)
-    cog   = stack.stack_cog()
-    serv_origin = stack.servicer_origin_in_client_frame()
+    serv_origin = stack.servicer_origin_in_lar_frame()
 
     # IK target: full reach in (yaw, elev) direction from pivot
     az = np.radians(yaw_deg)
@@ -282,7 +281,21 @@ def redraw(ax, ax_info, stack: StackConfig,
         q0, q1, q2 = np.radians(yaw_deg), 0.0, 0.0
         feasible = False
 
-    p_elbow, p_thruster = arm.forward_kinematics(pivot, q0, q1, q2)
+    p_elbow, p_wrist, p_thruster = arm.forward_kinematics(pivot, q0, q1, q2)
+
+    # Full stack CoG including arm link masses at current joint configuration
+    base_cog   = stack.stack_cog()
+    stack_mass = stack.client_mass + stack.servicer_mass
+    u_rad   = np.array([np.cos(q0), np.sin(q0), 0.0])
+    u_z     = np.array([0.0, 0.0, 1.0])
+    d_upper = np.cos(q1) * u_rad + np.sin(q1) * u_z
+    d_lower = np.cos(q1 + q2) * u_rad + np.sin(q1 + q2) * u_z
+    cog_L1      = pivot   + (arm.link1_length   / 2.0) * d_upper
+    cog_L2      = p_elbow + (arm.link2_length   / 2.0) * d_lower
+    cog_bracket = p_wrist + (arm.bracket_length / 2.0) * d_lower
+    arm_cog  = (arm.link1_mass * cog_L1 + arm.link2_mass * cog_L2 +
+                arm.bracket_mass * cog_bracket) / arm.arm_mass()
+    cog = (stack_mass * base_cog + arm.arm_mass() * arm_cog) / (stack_mass + arm.arm_mass())
 
     # Thrust/plume direction
     to_cog = cog - p_thruster

@@ -16,7 +16,8 @@
       "Bash(/opt/homebrew/bin/python3.10 plume_impingement_pipeline.py)",
       "Bash(/opt/homebrew/bin/python3.10 propellant_erosion_correlation.py)",
       "Bash(/opt/homebrew/bin/python3.10 geometry_visualizer.py --save)",
-      "Bash(/opt/homebrew/bin/python3.10 openplume_exporter.py)"
+      "Bash(/opt/homebrew/bin/python3.10 openplume_exporter.py)",
+      "Bash(python3:*)"
     ]
   }
 }
