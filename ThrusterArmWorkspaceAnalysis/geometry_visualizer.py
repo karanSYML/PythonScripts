@@ -72,14 +72,15 @@ STACK = StackConfig(
     lar_offset_z=0.05,
 )
 THRUSTER = ThrusterParams()
-
+ARM = RoboticArmGeometry()
 
 # ─── Pure geometry helpers (independent of GeometryEngine) ────────────────────
 
-def pivot_position(stack: StackConfig) -> np.ndarray:
+def pivot_position(stack: StackConfig, arm: RoboticArmGeometry) -> np.ndarray:
     """Pivot point in LAR frame. Placed on the servicer +Z face (toward LAR)."""
     origin = stack.servicer_origin_in_lar_frame()
-    return origin + np.array([0.0, 0.0, stack.servicer_bus_z / 2.0])
+    print(origin, origin+np.array([arm.pivot_offset_x, arm.pivot_offset_y, arm.pivot_offset_z]))
+    return origin + np.array([arm.pivot_offset_x, arm.pivot_offset_y, arm.pivot_offset_z]) #np.array([0.0, 0.0, stack.servicer_bus_z / 2.0])
 
 
 def panel_grid(stack: StackConfig, tracking_deg: float = 0.0,
@@ -172,14 +173,14 @@ def draw_box(ax, center, dims, edge_color, face_color=None,
 def draw_panel_faces(ax, stack, tracking_deg=0.0):
     """Draw both solar panels as translucent gold quads."""
     track = np.radians(tracking_deg)
-    zi = 0.0 #stack.client_bus_z / 2.0 
+    zi = stack.client_bus_z / 2.0 
     hw = stack.panel_width / 2.0
 
     def corner(x, y):
         return [x, y * np.cos(track), zi + y * np.sin(track)]
 
     for side in [+1, -1]:
-        x0 = side * stack.client_bus_x / 2.0
+        x0 = side * (stack.client_bus_x / 2.0 + stack.panel_hinge_offset_y)
         x1 = x0 + side * stack.panel_span_one_side
         quad = [corner(x0, -hw), corner(x1, -hw),
                 corner(x1,  hw), corner(x0,  hw)]
@@ -232,7 +233,7 @@ def set_equal_aspect(ax, pts):
     # Set manually to visualize the movement of the Arm
     ax.set_xlim(-2.5, 2.5)
     ax.set_ylim(-2.5, 2.5)
-    ax.set_zlim(-3.0, 3.0)
+    ax.set_zlim(-3.0, 5.0)
 
     try:
         ax.set_box_aspect([1, 1, 1])   # matplotlib ≥ 3.3
@@ -242,7 +243,7 @@ def set_equal_aspect(ax, pts):
 
 # ─── Core redraw ──────────────────────────────────────────────────────────────
 
-def redraw(ax, ax_info, stack: StackConfig,
+def redraw(ax, ax_info, stack: StackConfig, arm:RoboticArmGeometry,
            yaw_deg: float, elev_deg: float,
            reach_m: float, link_ratio: float,
            tracking_deg: float, elbow_up: bool,
@@ -266,7 +267,7 @@ def redraw(ax, ax_info, stack: StackConfig,
         elbow_up=elbow_up,
     )
 
-    pivot = pivot_position(stack)
+    pivot = pivot_position(stack, arm)
     serv_origin = stack.servicer_origin_in_lar_frame()
 
     # IK target: full reach in (yaw, elev) direction from pivot
@@ -329,7 +330,7 @@ def redraw(ax, ax_info, stack: StackConfig,
         arm_clr, arm_tag = "#27AE60", "OK"
 
     # ── Draw: client bus ───────────────────────────────────────────────────
-    draw_box(ax, [0, 0, 0],
+    draw_box(ax, [0, 0, stack.client_bus_z/2.0],
              [stack.client_bus_x, stack.client_bus_y, stack.client_bus_z],
              edge_color="#5D6D7E", face_color="#BDC3C7", face_alpha=0.13)
 
@@ -339,7 +340,8 @@ def redraw(ax, ax_info, stack: StackConfig,
              edge_color="#2471A3", face_color="#5DADE2", face_alpha=0.20)
 
     # ── Draw: LAR interface ────────────────────────────────────────────────
-    lar_z   = -(stack.client_bus_z / 2.0 + stack.lar_offset_z / 2.0)
+    # lar_z   = -(stack.client_bus_z / 2.0 + stack.lar_offset_z / 2.0)
+    lar_z   = -(stack.lar_offset_z / 2.0)
     lar_w   = min(stack.client_bus_x, stack.servicer_bus_x) * 0.65
     draw_box(ax, [0, 0, lar_z],
              [lar_w, lar_w * 0.85, stack.lar_offset_z],
@@ -533,7 +535,7 @@ def main():
     }
 
     def _redraw():
-        redraw(ax3d, ax_info, STACK, **state)
+        redraw(ax3d, ax_info, STACK, ARM, **state)
         fig.canvas.draw_idle()
 
     if not save_mode:
@@ -545,7 +547,7 @@ def main():
         ax_track = fig.add_axes([0.08, 0.035, 0.52, 0.022])
 
         sl_yaw   = Slider(ax_yaw,   "Shoulder Yaw  q₀ [°]",    0, 270,  valinit=90,   valstep=5)
-        sl_elev  = Slider(ax_elev,  "Shoulder Elev  φ [°]",      -5,  5,  valinit=0,   valstep=1)
+        sl_elev  = Slider(ax_elev,  "Shoulder Elev  φ [°]",      0,  90,  valinit=0,   valstep=1)
         sl_reach = Slider(ax_reach, "Arm Reach  L₁+L₂ [m]",      1.0,  3.0, valinit=2.6, valstep=0.2)
         sl_ratio = Slider(ax_ratio, "Link Ratio  L₁/(L₁+L₂)",    0.5,  0.8, valinit=0.5, valstep=0.05)
         sl_track = Slider(ax_track, "Panel Track  α [°]",         -90,  90,  valinit=0.0, valstep=5)
@@ -582,7 +584,7 @@ def main():
         check.on_clicked(_on_check)
 
     # ── Initial draw ───────────────────────────────────────────────────────
-    redraw(ax3d, ax_info, STACK, **state)
+    redraw(ax3d, ax_info, STACK, ARM, **state)
 
     if save_mode:
         out = "geometry_verification.png"

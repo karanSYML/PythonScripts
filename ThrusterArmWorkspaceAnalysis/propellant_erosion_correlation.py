@@ -17,7 +17,7 @@ Key features:
   - Propellant-limited vs erosion-limited mission duration
   - Correlation heatmaps: propellant budget vs erosion margin
 
-Author: Plume Impingement Analysis Framework
+Author: karan.anand@infiniteorbits.io
 """
 
 import numpy as np
@@ -53,13 +53,13 @@ class StationkeepingBudget:
     ewsk_dv_per_year: float = 2.0        # m/s/yr  (small, ~1-5 depending on slot)
 
     # Momentum management (wheel desaturation via thrusters)
-    momentum_dv_per_year: float = 0.5    # m/s/yr
+    momentum_dv_per_year: float = 1.0    # m/s/yr
 
     # Relocation / repositioning budget (one-time or periodic)
     relocation_dv: float = 0.0           # m/s total over mission
 
     # Margin
-    margin_fraction: float = 0.10        # 10% margin on total
+    margin_fraction: float = 0.25        # 25% margin on total
 
     # Manoeuvre scheduling
     nssk_manoeuvres_per_day: int = 2     # typically 2 burns per orbit for NSSK
@@ -96,13 +96,13 @@ class PropellantConfig:
     """Propellant system configuration (all on servicer)."""
     # Tank
     tank_capacity_kg: float = 150.0       # max Xe capacity
-    propellant_loaded_kg: float = 120.0   # actual loaded propellant
+    propellant_loaded_kg: float = 140.0   # actual loaded propellant
     tank_position_x: float = 0.0          # tank CG relative to servicer geometric centre
     tank_position_y: float = 0.0
     tank_position_z: float = 0.0          # typically near servicer CG
 
     # Residual
-    residual_fraction: float = 0.03       # 3% unusable residual
+    residual_fraction: float = 0.08       # 8% unusable residual
 
     def usable_propellant_kg(self) -> float:
         return self.propellant_loaded_kg * (1.0 - self.residual_fraction)

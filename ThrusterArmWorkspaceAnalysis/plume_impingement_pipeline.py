@@ -21,7 +21,7 @@ Coordinate Frame Convention (LAR frame)
   The servicer hangs on the −Z (anti-earth) side of the LAR.
   All positions in this file are expressed in the LAR frame unless noted otherwise.
 
-Author: Plume Impingement Analysis Framework
+Author: karan.anand@infiniteorbits.io
 """
 
 import numpy as np
@@ -101,9 +101,9 @@ class RoboticArmGeometry:
     bracket_mass:   float = 3.0    # kg
 
     # Pivot position offset from the servicer geometric centre
-    pivot_offset_x: float = 0.0    # m
-    pivot_offset_y: float = 0.0    # m
-    pivot_offset_z: float = 0.0    # m  (0 = at servicer +Z face)
+    pivot_offset_x: float = 0.174    # m
+    pivot_offset_y: float = 0.350    # m
+    pivot_offset_z: float = 0.5      # m  (0 = at servicer +Z face)
 
     # Joint angle limits [deg]
     q0_min_deg: float =   0.0    # J1 shoulder yaw
@@ -198,13 +198,13 @@ class StackConfig:
     # Client (telecom satellite)
     client_mass: float = 2500.0         # kg
     client_bus_x: float = 2.5           # m
-    client_bus_y: float = 2.2           # m
-    client_bus_z: float = 3.0           # m
+    client_bus_y: float = 3.0           # m
+    client_bus_z: float = 5.0           # m
 
     # Solar panels (client) – modelled as flat rectangles
     panel_span_one_side: float = 16.0   # m  from bus edge to panel tip
     panel_width: float = 2.2            # m  (along orbit-normal)
-    panel_hinge_offset_y: float = 1.0   # m  offset of hinge line from bus centre-y
+    panel_hinge_offset_y: float = 1.5   # m  offset of hinge line from bus centre-y
     panel_cant_angle_deg: float = 0.0   # deg  cant about hinge axis
 
     # Docking interface
@@ -218,8 +218,8 @@ class StackConfig:
     # All dishes have their aperture normal pointing +Z (nadir-facing).
     antenna_diameter_east: float = 2.2  # m  E1, E2
     antenna_diameter_west: float = 2.5  # m  W1, W2
-    antenna_x_separation:  float = 1.5  # m  centre-to-centre along X
-    antenna_z_offset:      float = 0.8  # m  above bus centre (toward nadir)
+    antenna_x_separation:  float = 4.0  # m  centre-to-centre along X
+    antenna_z_offset:      float = 1.8  # m  above bus centre (toward nadir)
     antenna_mass:          float = 20.0 # kg per dish (all four identical)
 
     def antenna_centers_in_lar_frame(self) -> Dict[str, np.ndarray]:
@@ -377,21 +377,11 @@ class GeometryEngine:
         """Robotic arm: IK to find joint angles, then FK to get thruster position.
 
         Target placement strategy:
-          The arm extends horizontally in the shoulder_yaw_deg azimuth direction at
-          total reach (L1+L2).  This keeps the arm clear of the client bus (which
-          sits above the pivot) and makes shoulder_yaw_deg the primary control for
-          where the thruster is placed around the spacecraft.  The thrust direction
-          (computed separately in thrust_direction()) then aims the plume toward the
-          stack COG.
+          The arm extends horizontally in the shoulder_yaw_deg azimuth direction at total reach (L1+L2).  This keeps the arm clear of the client bus (which sits above the pivot) and makes shoulder_yaw_deg the primary control for where the thruster is placed around the spacecraft.  The thrust direction (computed separately in thrust_direction()) then aims the plume toward the stack COG.
 
-          IK still resolves the elbow angle consistent with the elbow_up flag, which
-          is relevant when the arm geometry has unequal link lengths.  For a
-          horizontal target at reach R the IK degenerates to q1=0, q2=0 (fully
-          extended), but link_ratio still affects the elbow height during collision
-          checking (arm_link_positions).
+          IK still resolves the elbow angle consistent with the elbow_up flag, which is relevant when the arm geometry has unequal link lengths.  For a horizontal target at reach R the IK degenerates to q1=0, q2=0 (fully extended), but link_ratio still affects the elbow height during collision checking (arm_link_positions).
 
-        If IK fails (out of reach or joint limits exceeded), the straight horizontal
-        fallback is returned and ik_feasible is False.
+        If IK fails (out of reach or joint limits exceeded), the straight horizontal fallback is returned and ik_feasible is False.
         """
         arm = self.arm
         pivot = self._pivot_position()
@@ -892,9 +882,9 @@ class CaseMatrixGenerator:
         """Set default parameter sweep ranges."""
         self.param_ranges = {
             # Robotic arm geometry
-            "arm_reach_m":         np.array([2.0, 2.5, 3.0, 3.5, 4.0, 5.0, 6.0]),
+            "arm_reach_m":         np.array([2.0, 2.5, 3.0]),
             "shoulder_yaw_deg":    np.array([-30, -15, 0, 15, 30, 45, 60, 90]),
-            "link_ratio":          np.array([0.3, 0.4, 0.5, 0.6, 0.7]),
+            "link_ratio":          np.array([0.5, 0.6, 0.7]),
 
             # Stack
             "client_mass":         np.array([1500, 2000, 2500, 3000, 3500]),
@@ -968,19 +958,19 @@ class CaseMatrixGenerator:
             elbow_up=bool(case.get("elbow_up", True)),
         )
         stack = StackConfig(
-            servicer_mass=case.get("servicer_mass", 400.0),
-            client_mass=case.get("client_mass", 3000.0),
-            panel_span_one_side=case.get("panel_span_one_side", 12.0),
+            servicer_mass=case.get("servicer_mass", 700.0),
+            client_mass=case.get("client_mass", 2500.0),
+            panel_span_one_side=case.get("panel_span_one_side", 16.0),
             panel_width=case.get("panel_width", 2.5),
             client_bus_x=case.get("client_bus_x", 2.5),
-            client_bus_y=case.get("client_bus_y", 2.2),
-            client_bus_z=case.get("client_bus_z", 3.0),
+            client_bus_y=case.get("client_bus_y", 3.0),
+            client_bus_z=case.get("client_bus_z", 5.0),
             panel_cant_angle_deg=case.get("panel_cant_deg", 0.0),
         )
         ops = OperationalParams(
-            firing_duration_s=case.get("firing_duration_s", 600.0),
+            firing_duration_s=case.get("firing_duration_s", 15000.0),
             mission_duration_years=case.get("mission_duration_yr", 5.0),
-            firings_per_day=case.get("firings_per_day", 2.0),
+            firings_per_day=case.get("firings_per_day", 1.0),
             panel_sun_tracking_angle_deg=case.get("panel_tracking_deg", 0.0),
         )
         return arm, stack, ops
