@@ -67,38 +67,55 @@ class RoboticArmGeometry:
 
     Physical structure (per URDF spec)
     ------------------------------------
-    J1  Shoulder Yaw  – revolute about Z at pivot base          → Link 1 (L1)
-    J2  Elbow Pitch   – revolute ⊥ to Link 1 at elbow          → Link 2 (L2)
-    J3  Wrist Pitch   – revolute ⊥ to Link 2 at wrist          → Bracket (L3)
+    J1  Shoulder Yaw  – revolute about +Z at pivot base       → Link 1 (L1, always horizontal)
+    J2  Elbow Pitch   – revolute ⊥ to Link 1 at elbow         → Link 2 (L2)
+    J3  Wrist Pitch   – revolute ⊥ to Link 2 at wrist         → Bracket (L3)
     Thruster frame    – fixed at end of bracket
 
     Link properties (baseline from URDF spec)
     ------------------------------------------
     Link 1  : 1.12 m, 10 kg  (shoulder → elbow)
     Link 2  : 1.40 m, 10 kg  (elbow → wrist)
-    Bracket : 0.35 m,  3 kg  (wrist → thruster exit)
-    Total reach (straight) : 2.87 m
+    Bracket : 0.50 m, 15 kg  (wrist → thruster exit)
+    Total reach (straight) : 3.02 m
+
+    Zero / stowed configuration
+    ----------------------------
+    (q0, q1, q2) = (0°, 0°, 0°) represents the arm fully stowed against the hub.
+    In this configuration all links are horizontal, pointing in the +X direction
+    of the LAR frame (after the servicer yaw rotation is applied to the pivot).
 
     Forward kinematics (LAR frame)
     --------------------------------
-    u_rad      = [cos(q0), sin(q0), 0]                        # azimuth after yaw
-    d_upper    = cos(q1)*u_rad + sin(q1)*Z_hat                # Link 1 direction
-    d_lower    = cos(q1+q2)*u_rad + sin(q1+q2)*Z_hat          # Link 2 + bracket direction
+    u_rad      = [cos(q0), sin(q0), 0]          # horizontal yaw direction
+    d_link2    = cos(q1)*u_rad + sin(q1)*Z_hat  # link 2 direction (q1 pitches at elbow)
+    d_bracket  = cos(q1+q2)*u_rad + sin(q1+q2)*Z_hat  # bracket direction
 
-    p_elbow    = pivot + L1 * d_upper
-    p_wrist    = p_elbow + L2 * d_lower
-    p_thruster = p_wrist  + L3 * d_lower   (bracket extends in same direction as Link 2)
+    p_elbow    = pivot + L1 * u_rad             # link 1 always horizontal
+    p_wrist    = p_elbow + L2 * d_link2
+    p_thruster = p_wrist  + L3 * d_bracket
 
-    IK note: solved as a 2R planar arm using L1 and (L2+L3) as effective links,
-    targeting the thruster exit point.  This is exact when the bracket is collinear
-    with Link 2 (i.e. no additional wrist bend beyond q2).
+    IK note: link 1 is fixed horizontal so the elbow is at (pivot + L1·u_rad).
+    The problem reduces to 2R planar IK from the elbow using L2 and L3.
     """
     link1_length:   float = 1.12   # m   shoulder → elbow   (J2 pivot)
     link1_mass:     float = 10.0   # kg
     link2_length:   float = 1.40   # m   elbow    → wrist   (J3 pivot)
     link2_mass:     float = 10.0   # kg
-    bracket_length: float = 0.35   # m   wrist    → thruster exit
-    bracket_mass:   float = 3.0    # kg
+    bracket_length: float = 0.5    # m   wrist    → thruster exit
+    bracket_mass:   float = 15.0   # kg
+
+    # Per-link CoM offset along the link axis from the proximal joint [m]
+    # None → geometric midpoint (0.5 * link_length)
+    link1_com_offset:   Optional[float] = None
+    link2_com_offset:   Optional[float] = None
+    bracket_com_offset: Optional[float] = None
+
+    # Per-link 3×3 inertia tensor in the link frame [kg·m²]
+    # None → thin-rod approximation: I_yy = I_zz = m*L²/12, I_xx ≈ 0
+    link1_inertia:   Optional[np.ndarray] = field(default=None, repr=False)
+    link2_inertia:   Optional[np.ndarray] = field(default=None, repr=False)
+    bracket_inertia: Optional[np.ndarray] = field(default=None, repr=False)
 
     # Pivot position offset from the servicer geometric centre
     pivot_offset_x: float = 0.174    # m
@@ -118,6 +135,15 @@ class RoboticArmGeometry:
     # Elbow configuration preference
     elbow_up: bool = True
 
+    @staticmethod
+    def stowed_joint_angles_deg() -> Tuple[float, float, float]:
+        """Return the stowed (home) joint angles in degrees: (q0, q1, q2) = (0, 0, 0).
+
+        At these angles the arm lies horizontal along the +X direction of the LAR frame
+        (after servicer yaw), folded against the hub.
+        """
+        return (0.0, 0.0, 0.0)
+
     def arm_reach(self) -> float:
         """Total arm reach fully extended (L1 + L2 + bracket) [m]."""
         return self.link1_length + self.link2_length + self.bracket_length
@@ -126,17 +152,63 @@ class RoboticArmGeometry:
         """Total arm mass [kg]."""
         return self.link1_mass + self.link2_mass + self.bracket_mass
 
+    def effective_link1_com(self) -> float:
+        """CoM offset along link 1 axis from J1 joint [m]."""
+        return self.link1_com_offset if self.link1_com_offset is not None \
+               else 0.5 * self.link1_length
+
+    def effective_link2_com(self) -> float:
+        """CoM offset along link 2 axis from J2 joint [m]."""
+        return self.link2_com_offset if self.link2_com_offset is not None \
+               else 0.5 * self.link2_length
+
+    def effective_bracket_com(self) -> float:
+        """CoM offset along bracket axis from J3 joint [m]."""
+        return self.bracket_com_offset if self.bracket_com_offset is not None \
+               else 0.5 * self.bracket_length
+
+    def effective_link1_inertia(self) -> np.ndarray:
+        """3×3 inertia tensor for link 1 in its link frame [kg·m²]."""
+        if self.link1_inertia is not None:
+            return self.link1_inertia
+        I_t = self.link1_mass * self.link1_length ** 2 / 12.0
+        return np.diag([0.0, I_t, I_t])
+
+    def effective_link2_inertia(self) -> np.ndarray:
+        """3×3 inertia tensor for link 2 in its link frame [kg·m²]."""
+        if self.link2_inertia is not None:
+            return self.link2_inertia
+        I_t = self.link2_mass * self.link2_length ** 2 / 12.0
+        return np.diag([0.0, I_t, I_t])
+
+    def effective_bracket_inertia(self) -> np.ndarray:
+        """3×3 inertia tensor for bracket in its link frame [kg·m²]."""
+        if self.bracket_inertia is not None:
+            return self.bracket_inertia
+        I_t = self.bracket_mass * self.bracket_length ** 2 / 12.0
+        return np.diag([0.0, I_t, I_t])
+
     def forward_kinematics(self, pivot: np.ndarray,
                            q0: float, q1: float, q2: float
                            ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Return (p_elbow, p_wrist, p_thruster) given joint angles in radians."""
-        u_rad = np.array([np.cos(q0), np.sin(q0), 0.0])
+        """Return (p_elbow, p_wrist, p_thruster) given joint angles in radians.
+
+        Joint convention:
+          J1 (q0): shoulder yaw — rotates link 1 about Z; link 1 is always horizontal.
+          J2 (q1): elbow pitch  — pitches link 2 relative to link 1 in the yaw plane.
+          J3 (q2): wrist pitch  — pitches bracket relative to link 2.
+        """
+        u_rad = np.array([np.cos(q0), np.sin(q0), 0.0])   # horizontal yaw direction
         u_z   = np.array([0.0, 0.0, 1.0])
-        d_upper = np.cos(q1) * u_rad + np.sin(q1) * u_z          # Link 1 direction
-        d_lower = np.cos(q1 + q2) * u_rad + np.sin(q1 + q2) * u_z  # Link 2 + bracket direction
-        p_elbow    = pivot  + self.link1_length   * d_upper
-        p_wrist    = p_elbow + self.link2_length  * d_lower
-        p_thruster = p_wrist  + self.bracket_length * d_lower
+
+        # Link 1 is always horizontal; only q0 sweeps it in the XY plane.
+        # q1 pitches link 2 at the elbow; q1+q2 pitches the bracket at the wrist.
+        d_link2   = np.cos(q1)      * u_rad + np.sin(q1)      * u_z
+        d_bracket = np.cos(q1 + q2) * u_rad + np.sin(q1 + q2) * u_z
+
+        p_elbow    = pivot   + self.link1_length   * u_rad       # elbow always horizontal
+        p_wrist    = p_elbow + self.link2_length   * d_link2
+        p_thruster = p_wrist + self.bracket_length * d_bracket
         return p_elbow, p_wrist, p_thruster
 
     def inverse_kinematics(self, pivot: np.ndarray, target: np.ndarray,
@@ -144,23 +216,31 @@ class RoboticArmGeometry:
                            ) -> Optional[Tuple[float, float, float]]:
         """Closed-form IK for yaw-pitch-pitch arm targeting the thruster exit point.
 
-        Treats L1 and (L2 + bracket) as the two effective 2R planar links.
+        Because link 1 is always horizontal, the elbow is fixed at
+        (pivot + L1*u_rad). The problem reduces to a planar 2R IK for
+        link 2 (L2) and bracket (L3) from the elbow to the target.
+
         Returns (q0, q1, q2) in radians, or None if target is unreachable.
         """
         L1 = self.link1_length
-        L2 = self.link2_length + self.bracket_length   # effective second link
+        L2 = self.link2_length
+        L3 = self.bracket_length
         dv = target - pivot
 
-        # J1: shoulder yaw from horizontal projection
+        # J1: shoulder yaw from horizontal projection of target
         q0 = np.arctan2(dv[1], dv[0])
 
-        # Horizontal reach and vertical offset
+        # Horizontal reach and vertical offset from pivot to target
         r = np.sqrt(dv[0] ** 2 + dv[1] ** 2)
         z = dv[2]
 
-        # Cosine-rule for elbow (J2) angle
-        dist_sq = r ** 2 + z ** 2
-        cos_q2 = (dist_sq - L1 ** 2 - L2 ** 2) / (2.0 * L1 * L2)
+        # Elbow is always L1 horizontally from pivot; subtract to get
+        # the reach from elbow to target in the pitched plane.
+        r2 = r - L1
+
+        # Cosine-rule for wrist (J3) angle between link 2 and bracket
+        dist_sq = r2 ** 2 + z ** 2
+        cos_q2 = (dist_sq - L2 ** 2 - L3 ** 2) / (2.0 * L2 * L3)
 
         if abs(cos_q2) > 1.0:
             return None  # target out of reach
@@ -168,9 +248,9 @@ class RoboticArmGeometry:
         cos_q2 = np.clip(cos_q2, -1.0, 1.0)
         q2 = np.arccos(cos_q2) if elbow_up else -np.arccos(cos_q2)
 
-        # J2: elbow pitch
-        alpha = np.arctan2(z, r)
-        beta  = np.arctan2(L2 * np.sin(q2), L1 + L2 * np.cos(q2))
+        # J2: elbow pitch — angle of link 2 relative to horizontal
+        alpha = np.arctan2(z, r2)
+        beta  = np.arctan2(L3 * np.sin(q2), L2 + L3 * np.cos(q2))
         q1 = alpha - beta
 
         return q0, q1, q2
@@ -207,6 +287,10 @@ class StackConfig:
     panel_hinge_offset_y: float = 1.5   # m  offset of hinge line from bus centre-y
     panel_cant_angle_deg: float = 0.0   # deg  cant about hinge axis
 
+    # Servicer solar panels
+    servicer_panel_span: float = 5.0    # m  panel span per side from inner edge
+    servicer_panel_gap:  float = 1.4    # m  gap between servicer bus face and panel inner edge
+
     # Docking interface
     lar_offset_z: float = 0.05          # m  LAR hardware standoff height
     dock_offset_z: float =-0.8          # m  servicer offset along Z from client centre
@@ -216,10 +300,10 @@ class StackConfig:
     # East face (+Y): E1 (−X side) and E2 (+X side), diameter 2.2 m
     # West face (−Y): W1 (−X side) and W2 (+X side), diameter 2.5 m
     # All dishes have their aperture normal pointing +Z (nadir-facing).
-    antenna_diameter_east: float = 2.2  # m  E1, E2
-    antenna_diameter_west: float = 2.5  # m  W1, W2
-    antenna_x_separation:  float = 4.0  # m  centre-to-centre along X
-    antenna_z_offset:      float = 1.8  # m  above bus centre (toward nadir)
+    antenna_diameter_east: float = 2.5  # m  E1, E2
+    antenna_diameter_west: float = 2.3  # m  W1, W2
+    antenna_x_separation:  float = 6.0  # m  centre-to-centre along X
+    antenna_z_offset:      float = -1.0  # m  offset from bus centre; negative = toward servicer
     antenna_mass:          float = 20.0 # kg per dish (all four identical)
 
     def antenna_centers_in_lar_frame(self) -> Dict[str, np.ndarray]:
@@ -233,7 +317,8 @@ class StackConfig:
         W2                →  −Y    |  +x_sep/2
 
         Z coordinate: client bus centre + antenna_z_offset
-          = client_bus_z/2 + antenna_z_offset  (nadir side)
+          = client_bus_z/2 + antenna_z_offset
+          Negative offset places dishes toward the servicer/LAR side.
         Y coordinate: ±client_bus_y/2 (flush with bus face)
         """
         z = self.client_bus_z / 2.0 + self.antenna_z_offset
@@ -330,6 +415,150 @@ def _segment_intersects_aabb(P0: np.ndarray, P1: np.ndarray,
                 return False
 
     return True
+
+
+def _segment_intersects_obb(P0: np.ndarray, P1: np.ndarray,
+                              center: np.ndarray, half_extents: np.ndarray,
+                              R_world_to_body: np.ndarray) -> bool:
+    """Return True if segment P0→P1 intersects an oriented bounding box (OBB).
+
+    Transforms the segment endpoints into the box body frame, then delegates
+    to the axis-aligned slab test.
+
+    Parameters
+    ----------
+    center          : OBB centre in world frame
+    half_extents    : (3,) half-widths [hx, hy, hz] in body frame
+    R_world_to_body : 3×3 rotation matrix  (world → body)
+    """
+    P0b = R_world_to_body @ (P0 - center)
+    P1b = R_world_to_body @ (P1 - center)
+    return _segment_intersects_aabb(P0b, P1b, -half_extents, half_extents)
+
+
+def _segment_intersects_disc(P0: np.ndarray, P1: np.ndarray,
+                               center: np.ndarray, radius: float,
+                               thickness: float = 0.15) -> bool:
+    """Return True if segment P0→P1 intersects a flat disc (thin cylinder, +Z axis).
+
+    The disc is modelled as a slab of *thickness* centred at *center[2]* in Z,
+    with radius *radius* in XY.
+
+    Algorithm: find the t-range where the segment is within the Z slab, then
+    find the t in that range that minimises distance to the disc centre in XY.
+    """
+    z_lo = center[2] - thickness / 2.0
+    z_hi = center[2] + thickness / 2.0
+    dz   = P1[2] - P0[2]
+
+    if abs(dz) < 1e-12:
+        if P0[2] < z_lo or P0[2] > z_hi:
+            return False
+        t_lo, t_hi = 0.0, 1.0
+    else:
+        t1 = (z_lo - P0[2]) / dz
+        t2 = (z_hi - P0[2]) / dz
+        t_lo = max(0.0, min(t1, t2))
+        t_hi = min(1.0, max(t1, t2))
+        if t_lo > t_hi:
+            return False
+
+    # t that minimises XY distance to disc centre within the slab interval
+    dx = P1[0] - P0[0]
+    dy = P1[1] - P0[1]
+    denom = dx * dx + dy * dy
+    if denom < 1e-12:
+        t_best = t_lo
+    else:
+        t_best = ((center[0] - P0[0]) * dx + (center[1] - P0[1]) * dy) / denom
+        t_best = max(t_lo, min(t_hi, t_best))
+
+    for t in (t_best, t_lo, t_hi):
+        pt = P0 + t * (P1 - P0)
+        if (pt[0] - center[0]) ** 2 + (pt[1] - center[1]) ** 2 <= radius ** 2:
+            return True
+    return False
+
+
+def arm_has_collision(pivot: np.ndarray, p_elbow: np.ndarray,
+                       p_wrist: np.ndarray, p_thruster: np.ndarray,
+                       stack: "StackConfig",
+                       servicer_yaw_deg: float = 0.0) -> bool:
+    """Return True if any arm segment collides with any obstacle in the stack.
+
+    Obstacles checked
+    -----------------
+    1. Client bus           – axis-aligned box (LAR frame)
+    2. Servicer bus         – oriented box (yawed by servicer_yaw_deg)
+    3. Servicer solar panels – two oriented rectangular slabs (same yaw)
+    4. Antenna reflectors   – four flat discs (axis-aligned, +Z normal)
+
+    Parameters
+    ----------
+    pivot, p_elbow, p_wrist, p_thruster : arm joint positions in LAR frame
+    stack            : StackConfig geometry
+    servicer_yaw_deg : servicer body yaw relative to LAR frame [deg]
+    """
+    segments = [(pivot, p_elbow), (p_elbow, p_wrist), (p_wrist, p_thruster)]
+
+    # ── 1. Client bus (AABB) ─────────────────────────────────────────────────
+    bx = stack.client_bus_x / 2.0
+    by = stack.client_bus_y / 2.0
+    client_min = np.array([-bx, -by, 0.0])
+    client_max = np.array([ bx,  by, stack.client_bus_z])
+    for P0, P1 in segments:
+        if _segment_intersects_aabb(P0, P1, client_min, client_max):
+            return True
+
+    # Precompute servicer yaw rotation matrices once
+    yaw_rad = np.radians(servicer_yaw_deg)
+    c, s    = np.cos(yaw_rad), np.sin(yaw_rad)
+    Rz_fwd  = np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]])  # body → LAR
+    Rz_inv  = Rz_fwd.T                                                   # LAR  → body
+
+    serv_origin = stack.servicer_origin_in_lar_frame()
+
+    # ── 2. Servicer bus (OBB) ─────────────────────────────────────────────────
+    serv_half = np.array([stack.servicer_bus_x / 2.0,
+                          stack.servicer_bus_y / 2.0,
+                          stack.servicer_bus_z / 2.0])
+    for P0, P1 in segments:
+        if _segment_intersects_obb(P0, P1, serv_origin, serv_half, Rz_inv):
+            return True
+
+    # ── 3. Servicer solar panels (two OBBs, same yaw) ─────────────────────────
+    half_x  = stack.servicer_bus_x / 2.0
+    half_y  = stack.servicer_bus_y / 2.0
+    gap     = stack.servicer_panel_gap
+    span    = stack.servicer_panel_span
+    p_thick = 0.10   # slab thickness [m]
+
+    for sign in (+1, -1):
+        # Panel centre in servicer body frame (z = 0 → servicer mid-plane)
+        y_ctr_body  = sign * (half_y + gap + span / 2.0)
+        pc_body     = np.array([0.0, y_ctr_body, 0.0])
+        # Panel centre in LAR frame
+        pc_lar      = serv_origin + Rz_fwd @ pc_body
+        panel_half  = np.array([half_x, span / 2.0, p_thick / 2.0])
+        for P0, P1 in segments:
+            if _segment_intersects_obb(P0, P1, pc_lar, panel_half, Rz_inv):
+                return True
+
+    # ── 4. Antenna dishes (disc collision) ────────────────────────────────────
+    ant_centers = stack.antenna_centers_in_lar_frame()
+    ant_radii   = {
+        "E1": stack.antenna_diameter_east / 2.0,
+        "E2": stack.antenna_diameter_east / 2.0,
+        "W1": stack.antenna_diameter_west / 2.0,
+        "W2": stack.antenna_diameter_west / 2.0,
+    }
+    for name, center in ant_centers.items():
+        r = ant_radii[name]
+        for P0, P1 in segments:
+            if _segment_intersects_disc(P0, P1, center, r):
+                return True
+
+    return False
 
 
 class GeometryEngine:
@@ -472,15 +701,76 @@ class GeometryEngine:
             self.thruster_position()
         return getattr(self, '_ik_feasible', False)
 
+    def cog_ik(self, target_cog_lar: np.ndarray,
+                pos_mask: np.ndarray = None,
+                error_weights: np.ndarray = None,
+                damping_gain: float = 1e-3,
+                position_tol: float = 1e-3,
+                max_iters: int = 100,
+                enforce_limits: bool = True
+                ) -> Tuple[bool, np.ndarray]:
+        """Find joint angles that place the arm CoG at target_cog_lar (LAR frame).
+
+        Uses damped least-squares iteration (Chan's method) over the centroidal
+        Jacobian.  thruster_position() must have been called first so that
+        _ik_joint_angles and _pivot_pos are populated (used as the initial guess).
+
+        pos_mask lets you constrain only a subset of CoG axes.  For example,
+        when aligning with a thrust line parallel to +X (NSSK), set
+        pos_mask=[0, 1, 1] to constrain only Y and Z.
+
+        On success, _ik_joint_angles is updated so that subsequent calls to
+        stack_cog_with_arm(), thrust_direction(), and thrust_metrics() all
+        reflect the new configuration.
+
+        Returns
+        -------
+        success : bool
+        q_sol   : (3,) solution joint angles [rad]
+        """
+        from arm_kinematics import arm_cog_ik
+
+        if not isinstance(self.arm, RoboticArmGeometry):
+            raise TypeError("cog_ik requires a RoboticArmGeometry arm.")
+
+        # Ensure pivot and initial angles are available
+        if not hasattr(self, '_pivot_pos'):
+            self.thruster_position()
+
+        q_init = np.array(self._ik_joint_angles) \
+                 if self._ik_joint_angles is not None \
+                 else np.zeros(3)
+
+        success, q_sol, _ = arm_cog_ik(
+            self.arm, self._pivot_pos, q_init,
+            target_cog_lar,
+            pos_mask=pos_mask,
+            error_weights=error_weights,
+            damping_gain=damping_gain,
+            position_tol=position_tol,
+            max_iters=max_iters,
+            enforce_limits=enforce_limits,
+        )
+
+        if success:
+            self._ik_joint_angles = tuple(q_sol)
+
+        return success, q_sol
+
     def stack_cog_with_arm(self) -> np.ndarray:
         """Stack CoG including arm link masses in LAR frame.
 
-        Each link's CoG is taken as its geometric midpoint.
+        Uses inertia-weighted CoM positions from arm_kinematics.arm_cog_position(),
+        which honours per-link CoM offsets and inertia tensors when set on
+        RoboticArmGeometry; otherwise falls back to thin-rod (midpoint) defaults.
+
         Must be called after thruster_position() so that _ik_joint_angles
         and _pivot_pos are cached.  Falls back to stack.stack_cog() (client +
         servicer only) if the arm is not a RoboticArmGeometry or IK has not
         yet been solved.
         """
+        from arm_kinematics import arm_cog_position
+
         base_cog   = self.stack.stack_cog()
         stack_mass = self.stack.client_mass + self.stack.servicer_mass
 
@@ -491,27 +781,9 @@ class GeometryEngine:
         if angles is None:
             return base_cog
 
-        q0, q1, q2 = angles
-        arm   = self.arm
-        pivot = self._pivot_pos
-
-        u_rad   = np.array([np.cos(q0), np.sin(q0), 0.0])
-        u_z     = np.array([0.0, 0.0, 1.0])
-        d_upper = np.cos(q1) * u_rad + np.sin(q1) * u_z
-        d_lower = np.cos(q1 + q2) * u_rad + np.sin(q1 + q2) * u_z
-
-        p_elbow = pivot   + arm.link1_length * d_upper
-        p_wrist = p_elbow + arm.link2_length * d_lower
-
-        # Midpoint of each link in LAR frame
-        cog_L1      = pivot   + (arm.link1_length   / 2.0) * d_upper
-        cog_L2      = p_elbow + (arm.link2_length   / 2.0) * d_lower
-        cog_bracket = p_wrist + (arm.bracket_length / 2.0) * d_lower
-
-        arm_cog  = (arm.link1_mass   * cog_L1 +
-                    arm.link2_mass   * cog_L2 +
-                    arm.bracket_mass * cog_bracket) / arm.arm_mass()
-        arm_mass = arm.arm_mass()
+        q       = np.array(angles)
+        arm_cog = arm_cog_position(self.arm, self._pivot_pos, q)
+        arm_mass = self.arm.arm_mass()
 
         return (stack_mass * base_cog + arm_mass * arm_cog) / (stack_mass + arm_mass)
 
