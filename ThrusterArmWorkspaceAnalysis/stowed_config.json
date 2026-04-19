@@ -1,0 +1,7 @@
+{
+  "_comment": "Stowed configuration for visual verification against satellite spec. Set pivot_position_lar_m to [x, y, z] once confirmed with team (null = computed from servicer geometry).",
+  "pivot_position_lar_m": [null, null, null],
+  "servicer_yaw_deg": -25.0,
+  "stowed_joint_angles_deg": [0.0, 0.0, 0.0],
+  "stowed_ee_unit_vector": [0.1455, 0.9189, 0.3666]
+}

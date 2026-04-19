@@ -33,16 +33,24 @@ Components shown
 Interactive controls
 --------------------
   Sliders:
-    J1 Shoulder Yaw  q0   [  0°,  270°]   initial: 0° (stowed)
-    J2 Elbow Pitch   q1   [  0°,  235°]   initial: 0° (stowed)
-    J3 Wrist Pitch   q2   [−36°,   99°]   initial: 0° (stowed)
-    Panel Track      α    [−90°,   90°]
-    Client mass           [1500 kg, 6000 kg]
+    EE target X  [m]   [−3, 3]    initial: stowed FK X
+    EE target Y  [m]   [−3, 3]    initial: stowed FK Y
+    EE target Z  [m]   [−3, 3]    initial: stowed FK Z
+    Panel Track  α     [−90°, 90°]
+    Client mass        [1500 kg, 6000 kg]
+    Servicer mass      [700 / 750 / 800 kg]
   Checkbox:
     Flux overlay
+  Config file (stowed_config.json):
+    pivot_position_lar_m  – override computed pivot (null = auto)
+    servicer_yaw_deg      – servicer docking yaw
+    stowed_joint_angles_deg – (q0, q1, q2) stowed reference
+    stowed_ee_unit_vector   – satellite-spec stowed EE direction
 """
 
 import sys
+import json
+import os
 from dataclasses import replace as _dc_replace
 import numpy as np
 
@@ -64,6 +72,21 @@ from plume_impingement_pipeline import (
     arm_has_collision,
 )
 from arm_kinematics import arm_cog_and_jacobian
+
+
+# ─── Stowed configuration (loaded from JSON at startup) ───────────────────────
+
+_STOWED_CFG: dict = {}
+
+def load_stowed_config(path: str = "stowed_config.json") -> dict:
+    """Load stowed_config.json from the script directory. Returns {} on failure."""
+    here = os.path.dirname(os.path.abspath(__file__))
+    fpath = os.path.join(here, path)
+    try:
+        with open(fpath) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
 
 
 # ─── Default geometry (fixed for static scene; masses come from state) ─────────
@@ -129,15 +152,20 @@ class VisScene:
 # ─── Pure geometry helpers ────────────────────────────────────────────────────
 
 def pivot_position(stack: StackConfig, arm: RoboticArmGeometry) -> np.ndarray:
-    """Pivot point in LAR frame, accounting for the servicer yaw rotation.
+    """Pivot point in LAR frame.
 
-    The pivot offset is defined in the servicer body frame; rotating it by
-    SERVICER_YAW_DEG maps it into the LAR frame before adding to the
-    servicer origin.  Z-rotation leaves the Z component unchanged.
+    If stowed_config.json supplies a non-null pivot_position_lar_m, that value
+    is used directly.  Otherwise the pivot is computed from the servicer origin
+    plus the body-frame offset rotated by servicer_yaw_deg from the config
+    (falling back to the module-level SERVICER_YAW_DEG constant).
     """
+    override = _STOWED_CFG.get("pivot_position_lar_m", [None, None, None])
+    if override and all(v is not None for v in override):
+        return np.array(override, dtype=float)
+    yaw_deg = _STOWED_CFG.get("servicer_yaw_deg", SERVICER_YAW_DEG)
     origin = stack.servicer_origin_in_lar_frame()
     offset_body = np.array([arm.pivot_offset_x, arm.pivot_offset_y, arm.pivot_offset_z])
-    return origin + _Rz(SERVICER_YAW_DEG) @ offset_body
+    return origin + _Rz(yaw_deg) @ offset_body
 
 
 def panel_grid(stack: StackConfig, tracking_deg: float = 0.0,
@@ -454,7 +482,9 @@ def _legend_elements() -> list:
         Line2D([0], [0], color="#1A252F", lw=2, label="Thrust vector"),
         Line2D([0], [0], color="#27AE60", lw=4, label="Arm \u2013 OK"),
         Line2D([0], [0], color="#E67E22", lw=4, label="Arm \u2013 Limit exceeded"),
-        Line2D([0], [0], color="#E74C3C", lw=4, label="Arm \u2013 Collision"),
+        Line2D([0], [0], color="#E74C3C", lw=4, label="Arm \u2013 Collision / unreachable"),
+        Line2D([0], [0], color="#F4D03F", lw=2.5, linestyle="--",
+               label="Stowed EE dir (spec)"),
     ]
 
 
@@ -503,6 +533,17 @@ def init_static_scene(ax, stack: StackConfig, scene: VisScene):
         *serv_origin, s=160, c="#2471A3", marker="D",
         edgecolors="w", linewidths=1.5, zorder=8)])
 
+    # Stowed EE reference arrow from satellite spec (golden dashed)
+    spec_vec = _STOWED_CFG.get("stowed_ee_unit_vector")
+    if spec_vec is not None:
+        sv = np.array(spec_vec, dtype=float)
+        stowed_pivot = pivot_position(stack, ARM)
+        arr_len = 1.5
+        scene.add_static([ax.quiver(
+            *stowed_pivot, *(sv * arr_len),
+            color="#F4D03F", linewidth=2.0, arrow_length_ratio=0.18,
+            linestyle="dashed")])
+
     ax.set_xlabel("X  [m]", fontsize=9, labelpad=3)
     ax.set_ylabel("Y  [m]", fontsize=9, labelpad=3)
     ax.set_zlabel("Z  [m]  (+Z = nadir)", fontsize=9, labelpad=3)
@@ -533,25 +574,33 @@ def draw_legend(ax_leg):
 def update_dynamic_scene(ax, ax_info, scene: VisScene, state: dict):
     """Clear dynamic artists and rebuild for current state; refresh status panel.
 
-    Joint angles are taken directly from state — no IK is performed.
-    Masses are injected into a copy of _STACK_GEOM via dataclasses.replace.
+    EE target (ee_x, ee_y, ee_z) is resolved via IK → (q0, q1, q2).
+    Both masses are injected into a copy of _STACK_GEOM via dataclasses.replace.
     """
     scene.clear_dynamic()
     ax_info.cla()
     ax_info.axis("off")
 
-    q0 = np.radians(state["q0_deg"])
-    q1 = np.radians(state["q1_deg"])
-    q2 = np.radians(state["q2_deg"])
     tracking_deg = state["tracking_deg"]
     show_flux    = state["show_flux"]
 
-    # Build stack with current client mass (servicer mass is fixed)
-    stack = _dc_replace(_STACK_GEOM, client_mass=state["client_mass"])
+    # Build stack with current masses
+    stack = _dc_replace(_STACK_GEOM,
+                        client_mass=state["client_mass"],
+                        servicer_mass=state["servicer_mass"])
 
     pivot = pivot_position(stack, ARM)
 
-    # ── Forward kinematics (direct) ───────────────────────────────────────
+    # ── IK: resolve EE target → joint angles ─────────────────────────────
+    ee_target  = np.array([state["ee_x"], state["ee_y"], state["ee_z"]])
+    ik_result  = ARM.inverse_kinematics(pivot, ee_target, elbow_up=True)
+    ik_failed  = ik_result is None
+    if ik_failed:
+        q0, q1, q2 = 0.0, 0.0, 0.0
+    else:
+        q0, q1, q2 = ik_result
+
+    # ── Forward kinematics ────────────────────────────────────────────────
     p_elbow, p_wrist, p_thruster = ARM.forward_kinematics(pivot, q0, q1, q2)
     in_limits = ARM.within_joint_limits(q0, q1, q2)
 
@@ -569,11 +618,14 @@ def update_dynamic_scene(ax, ax_info, scene: VisScene, state: dict):
     plume_dir  = -thrust_dir
 
     # ── Collision check (client bus + servicer box + panels + antennas) ─────
+    yaw_deg = _STOWED_CFG.get("servicer_yaw_deg", SERVICER_YAW_DEG)
     collision = arm_has_collision(pivot, p_elbow, p_wrist, p_thruster,
-                                  stack, SERVICER_YAW_DEG)
+                                  stack, yaw_deg)
 
     # ── Arm colour ────────────────────────────────────────────────────────
-    if collision:
+    if ik_failed:
+        arm_clr, arm_tag = "#E74C3C", "UNREACHABLE"
+    elif collision:
         arm_clr, arm_tag = "#E74C3C", "COLLISION"
     elif not in_limits:
         arm_clr, arm_tag = "#E67E22", "LIMIT EXCEEDED"
@@ -652,10 +704,13 @@ def update_dynamic_scene(ax, ax_info, scene: VisScene, state: dict):
     row(f"Z = {pivot[2]:+.3f} m")
     blank()
 
-    section("JOINT ANGLES")
-    row(f"q0 yaw    = {np.degrees(q0):+6.1f}°")
-    row(f"q1 elbow  = {np.degrees(q1):+6.1f}°")
-    row(f"q2 wrist  = {np.degrees(q2):+6.1f}°")
+    section("IK → JOINT ANGLES")
+    if ik_failed:
+        row("IK: UNREACHABLE", color=bad_c, bold=True)
+    else:
+        row(f"q0 yaw    = {np.degrees(q0):+6.1f}°")
+        row(f"q1 elbow  = {np.degrees(q1):+6.1f}°")
+        row(f"q2 wrist  = {np.degrees(q2):+6.1f}°")
     blank()
 
     section("FEASIBILITY")
@@ -674,8 +729,24 @@ def update_dynamic_scene(ax, ax_info, scene: VisScene, state: dict):
 
     section("MASSES")
     row(f"Servicer : {stack.servicer_mass:.0f} kg")
-    row(f"Client   : {state['client_mass']:.0f} kg")
+    row(f"Client   : {stack.client_mass:.0f} kg")
     row(f"Arm      : {arm_mass:.1f} kg")
+
+    # ── Stowed verification ───────────────────────────────────────────────
+    spec_vec = _STOWED_CFG.get("stowed_ee_unit_vector")
+    if spec_vec is not None:
+        sv = np.array(spec_vec, dtype=float)
+        # Bracket direction (EE pointing direction) from FK
+        u_rad = np.array([np.cos(q0), np.sin(q0), 0.0])
+        d_bracket = np.cos(q1 + q2) * u_rad + np.sin(q1 + q2) * np.array([0., 0., 1.])
+        cos_a = float(np.clip(np.dot(d_bracket, sv), -1.0, 1.0))
+        ang_deg = np.degrees(np.arccos(cos_a))
+        blank()
+        section("STOWED VERIFY")
+        row(f"Spec  [{sv[0]:+.4f},{sv[1]:+.4f},{sv[2]:+.4f}]")
+        row(f"Actual[{d_bracket[0]:+.4f},{d_bracket[1]:+.4f},{d_bracket[2]:+.4f}]")
+        row(f"Angular diff: {ang_deg:.1f}\u00b0",
+            color=ok_c if ang_deg < 5.0 else bad_c, bold=True)
 
     y = 0.985
     dy_map = {True: 0.048, False: 0.043}
@@ -705,35 +776,48 @@ def update_dynamic_scene(ax, ax_info, scene: VisScene, state: dict):
 # ─── Figure setup + main ──────────────────────────────────────────────────────
 
 def main():
+    global _STOWED_CFG
     save_mode = "--save" in sys.argv
+
+    # Load stowed config before anything else so pivot_position() can use it
+    _STOWED_CFG = load_stowed_config()
+
+    # Compute stowed EE position (FK at stowed angles) for slider initialisation
+    _pivot_init = pivot_position(_STACK_GEOM, ARM)
+    _stowed_q   = _STOWED_CFG.get("stowed_joint_angles_deg", [0.0, 0.0, 0.0])
+    _sq         = [np.radians(a) for a in _stowed_q]
+    _, _, _p_ee_stowed = ARM.forward_kinematics(_pivot_init, *_sq)
+    init_x = float(np.clip(_p_ee_stowed[0], -3.0, 3.0))
+    init_y = float(np.clip(_p_ee_stowed[1], -3.0, 3.0))
+    init_z = float(np.clip(_p_ee_stowed[2], -3.0, 3.0))
 
     fig = plt.figure(figsize=(18, 9), facecolor="#F8F9FA")
     fig.suptitle(
         "Thruster Arm Geometry Verifier  \u00b7  Servicer below client (Z\u2212)  \u00b7  "
-        "3-DOF direct joint control  \u00b7  Drag to rotate",
+        "EE target \u2192 IK \u2192 FK  \u00b7  Drag to rotate",
         fontsize=11, fontweight="bold", y=0.998, color="#1A252F",
     )
 
     # ── Axes layout ───────────────────────────────────────────────────────
-    #   [0.01, 0.24, 0.56, 0.73]  3D scene
-    #   [0.59, 0.24, 0.19, 0.73]  Status panel
-    #   [0.79, 0.24, 0.20, 0.73]  Legend (outside 3D plot)
-    ax3d    = fig.add_axes([0.01, 0.24, 0.56, 0.73], projection="3d")
+    #   [0.01, 0.26, 0.56, 0.71]  3D scene
+    #   [0.59, 0.26, 0.19, 0.71]  Status panel
+    #   [0.79, 0.26, 0.20, 0.71]  Legend (outside 3D plot, pushed right)
+    ax3d    = fig.add_axes([0.01, 0.26, 0.56, 0.71], projection="3d")
     ax3d.set_facecolor("#EBF5FB")
-    ax_info = fig.add_axes([0.59, 0.24, 0.19, 0.73])
-    ax_leg  = fig.add_axes([0.79, 0.24, 0.20, 0.73])
+    ax_info = fig.add_axes([0.59, 0.26, 0.19, 0.71])
+    ax_leg  = fig.add_axes([0.79, 0.26, 0.20, 0.71])
 
     ax3d.view_init(elev=20, azim=-110)
 
     # ── Mutable shared state ───────────────────────────────────────────────
-    # Initial joint angles are (0, 0, 0) = stowed configuration.
     state = {
-        "q0_deg":       0.0,    # J1 shoulder yaw  — stowed
-        "q1_deg":       0.0,    # J2 elbow pitch   — stowed
-        "q2_deg":       0.0,    # J3 wrist pitch   — stowed
-        "tracking_deg": 0.0,    # panel sun-tracking
-        "client_mass":  2500.0, # kg  (slider-controlled)
-        "show_flux":    False,
+        "ee_x":          init_x,
+        "ee_y":          init_y,
+        "ee_z":          init_z,
+        "tracking_deg":  0.0,
+        "client_mass":   2500.0,
+        "servicer_mass": 750.0,
+        "show_flux":     False,
     }
 
     # ── Static scene + legend (drawn once) ────────────────────────────────
@@ -747,37 +831,40 @@ def main():
 
     if not save_mode:
         # ── Sliders ────────────────────────────────────────────────────────
-        # Five rows; bottom y starts at 0.030, each row is 0.030 apart.
-        sl_y   = [0.195, 0.160, 0.125, 0.085, 0.045]
-        sl_w   = 0.50
-        sl_x   = 0.07
-        sl_h   = 0.022
+        # Six rows; bottom y starts at 0.040, stepping 0.032 each row.
+        sl_y = [0.205, 0.173, 0.141, 0.109, 0.077, 0.040]
+        sl_w = 0.50
+        sl_x = 0.07
+        sl_h = 0.022
 
-        ax_q0    = fig.add_axes([sl_x, sl_y[0], sl_w, sl_h])
-        ax_q1    = fig.add_axes([sl_x, sl_y[1], sl_w, sl_h])
-        ax_q2    = fig.add_axes([sl_x, sl_y[2], sl_w, sl_h])
+        ax_ex    = fig.add_axes([sl_x, sl_y[0], sl_w, sl_h])
+        ax_ey    = fig.add_axes([sl_x, sl_y[1], sl_w, sl_h])
+        ax_ez    = fig.add_axes([sl_x, sl_y[2], sl_w, sl_h])
         ax_track = fig.add_axes([sl_x, sl_y[3], sl_w, sl_h])
         ax_cmass = fig.add_axes([sl_x, sl_y[4], sl_w, sl_h])
+        ax_smass = fig.add_axes([sl_x, sl_y[5], sl_w, sl_h])
 
-        sl_q0    = Slider(ax_q0,    "J1  Yaw    q\u2080 [\u00b0]",   0,    270,  valinit=0,    valstep=1)
-        sl_q1    = Slider(ax_q1,    "J2  Elbow  q\u2081 [\u00b0]",   0,    235,  valinit=0,    valstep=1)
-        sl_q2    = Slider(ax_q2,    "J3  Wrist  q\u2082 [\u00b0]",  -36,    99,  valinit=0,    valstep=1)
-        sl_track = Slider(ax_track, "Panel Track  \u03b1 [\u00b0]", -90,    90,  valinit=0,    valstep=5)
-        sl_cmass = Slider(ax_cmass, "Client mass [kg]",             1500, 6000,  valinit=2500, valstep=50)
+        sl_ex    = Slider(ax_ex,    "EE  X  [m]",           -3.0,  3.0,  valinit=init_x, valstep=0.05)
+        sl_ey    = Slider(ax_ey,    "EE  Y  [m]",           -3.0,  3.0,  valinit=init_y, valstep=0.05)
+        sl_ez    = Slider(ax_ez,    "EE  Z  [m]",           -3.0,  3.0,  valinit=init_z, valstep=0.05)
+        sl_track = Slider(ax_track, "Panel Track  \u03b1 [\u00b0]", -90, 90, valinit=0,  valstep=5)
+        sl_cmass = Slider(ax_cmass, "Client mass [kg]",     1500, 6000,  valinit=2500,   valstep=50)
+        sl_smass = Slider(ax_smass, "Servicer mass [kg]",    700,  800,  valinit=750,    valstep=50)
 
         def _on_slider(_val):
-            state["q0_deg"]       = sl_q0.val
-            state["q1_deg"]       = sl_q1.val
-            state["q2_deg"]       = sl_q2.val
-            state["tracking_deg"] = sl_track.val
-            state["client_mass"]  = sl_cmass.val
+            state["ee_x"]          = sl_ex.val
+            state["ee_y"]          = sl_ey.val
+            state["ee_z"]          = sl_ez.val
+            state["tracking_deg"]  = sl_track.val
+            state["client_mass"]   = sl_cmass.val
+            state["servicer_mass"] = sl_smass.val
             _redraw()
 
-        for sl in (sl_q0, sl_q1, sl_q2, sl_track, sl_cmass):
+        for sl in (sl_ex, sl_ey, sl_ez, sl_track, sl_cmass, sl_smass):
             sl.on_changed(_on_slider)
 
-        # ── Checkbox: flux overlay ─────────────────────────────────────────
-        ax_check = fig.add_axes([0.62, 0.010, 0.10, 0.040])
+        # ── Checkbox: flux overlay (shifted right, away from status panel) ──
+        ax_check = fig.add_axes([0.85, 0.010, 0.12, 0.040])
         check = CheckButtons(ax_check, ["Flux overlay"], [False])
 
         def _on_check(_label):
