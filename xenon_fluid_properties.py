@@ -33,7 +33,7 @@ if BACKEND == "REFPROP":
 else:
     FLUIDS = {"Xe": "Xenon"}
 
-T_MIN_C = -25.0
+T_MIN_C = -30.0
 T_MAX_C = 25.0
 N_POINTS = 91            # ~0.5 C steps
 XE_T_CRIT_C = 16.58     # Xe critical temperature [C]
@@ -189,10 +189,22 @@ ax2.set_title("Liquid & Vapor Density")
 ax2.legend(fontsize=8)
 ax2.grid(True, alpha=0.3)
 
+# TODO Plot to compute the mass of liquid Xenon in a 5.2L tank as a function of temperature
+ax3 = fig.add_subplot(gs[2, 0])
+for fk, df in results.items():
+    if df.empty or "rho_liq" not in df.columns:
+        continue
+
+ax3.set_xlabel("Temperature [C]")
+ax3.set_ylabel("Xe Liquid Mass [kg]")
+ax3.set_title("Liquid Mass in tank")
+ax3.grid(True, alpha=0.3)
+
+
 bo_labels = list(G_LEVELS.keys())
 ls_map = ["-", "--", ":"]
 for idx, (fk, df) in enumerate(results.items()):
-    ax = fig.add_subplot(gs[2, idx])
+    ax = fig.add_subplot(gs[2, idx+1])
     ax.set_title(f"Bond Number — {fk}  (R={TANK_RADIUS_M} m)")
     if df.empty:
         ax.text(0.5, 0.5, "No data", transform=ax.transAxes, ha="center")

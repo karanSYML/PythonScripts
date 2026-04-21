@@ -16,3 +16,4 @@ refprop/REFPROP-cmake
 **/propellant_correlation_results/
 **/pareto_output/
 **/urdf_output/
+**/feasibility_map_spec.md
