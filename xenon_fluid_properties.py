@@ -38,7 +38,7 @@ T_MAX_C = 25.0
 N_POINTS = 91            # ~0.5 C steps
 XE_T_CRIT_C = 16.58     # Xe critical temperature [C]
 
-TANK_RADIUS_M = 0.15    # [m] update to your actual tank radius
+TANK_RADIUS_M = 0.075   # [m] update to your actual tank radius
 G_LEVELS = {
     "1 g (ground)":      9.81,
     "0.01 g (low-g)":    0.0981,
@@ -190,16 +190,46 @@ ax2.legend(fontsize=8)
 ax2.grid(True, alpha=0.3)
 
 # TODO Plot to compute the mass of liquid Xenon in a 5.2L tank as a function of temperature
+TANK_VOLUME_M3 = 5.2e-3
+M_TOTAL_KG = 8.0
+
 ax3 = fig.add_subplot(gs[2, 0])
 for fk, df in results.items():
-    if df.empty or "rho_liq" not in df.columns:
-        continue
+    if df.empty or "rho_liq" not in df.columns or "rho_vap" not in df.columns:
+        continue 
 
-ax3.set_xlabel("Temperature [C]")
+    # Back-calculate implied fill fraction at T_MIN for reference/validation
+    ref_row = df.iloc[(df["T_C"] - T_MIN_C).abs().argmin()]
+    rho_l_ref = ref_row["rho_liq"]
+    rho_v_ref = ref_row["rho_vap"]
+    # m = rho_l*x*V + rho_v*(1-x)*V => x = (m/V - rho_V) / (rho_l - rho_v)
+    x_ref = (M_TOTAL_KG / TANK_VOLUME_M3 - rho_v_ref) / (rho_l_ref - rho_v_ref)
+    print(f" [{fk}] Implied fill fraction at {T_MIN_C:.1f} C: {x_ref*100:.1f}%")
+    if not (0.0 < x_ref < 1.0):
+        print(f" WARNING: x_ref={x_ref:.3f} is outside (0,1) - check M_TOTAL_KG or T_MIN_C")
+    
+    # Two phase liquid fraction at each T
+    x = (M_TOTAL_KG / TANK_VOLUME_M3 - df["rho_vap"]) / (df["rho_liq"] - df["rho_vap"])
+    m_liq = (x * TANK_VOLUME_M3 * df["rho_liq"]).copy()
+
+    # Where x >= 1: tank is fully liquid  (ullage collapsed), mass = m_total (flat)
+    fully_liquid = x>=1.0
+    m_liq[fully_liquid] = M_TOTAL_KG
+    ax3.plot(df["T_C"], m_liq, color=COLORS[fk], ls=LS[fk], lw=2,
+             label=f"{fk} (m_total={M_TOTAL_KG:.1f} kg, fill={x_ref*100:.1f}% @ {T_MIN_C:.0f} C)")
+    
+    # Mark the ullage-collapse transition
+    if fully_liquid.any():
+        T_full = df.loc[fully_liquid, "T_C"].min()
+        ax3.axvline(T_full, color=COLORS[fk], lw=0.8, ls="--", alpha=0.6)
+        ax3.text(T_full + 0.4, M_TOTAL_KG * 0.97, f"ullage gone\n@ {T_full:.1f} C", fontsize=7, color=COLORS[fk], va="top")
+
+ax3.axvline(XE_T_CRIT_C, color=COLORS[fk], lw=0.8, ls=':', alpha=0.6, label='Critical Temp')
+ax3.set_xlabel("Temperature")
 ax3.set_ylabel("Xe Liquid Mass [kg]")
-ax3.set_title("Liquid Mass in tank")
+ax3.set_title(f"Liquid Mass in {TANK_VOLUME_M3*1e3:.1f} L sealed tank (fixed inventory)")
+ax3.legend(fontsize=8)
 ax3.grid(True, alpha=0.3)
-
 
 bo_labels = list(G_LEVELS.keys())
 ls_map = ["-", "--", ":"]
