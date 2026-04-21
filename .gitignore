@@ -4,6 +4,7 @@ refprop/REFPROP-cmake
 **/*.png
 **/*.jpg
 **/*.csv
+**/*.html
 **/.claude
 *.csv
 **/ThrusterArmAnalysis.md
@@ -16,4 +17,7 @@ refprop/REFPROP-cmake
 **/propellant_correlation_results/
 **/pareto_output/
 **/urdf_output/
+**/propellantCorrelation/
+**/plumePipeline/
+**/openplume_cases/
 **/feasibility_map_spec.md

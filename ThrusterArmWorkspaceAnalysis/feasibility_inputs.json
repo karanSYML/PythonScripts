@@ -1,0 +1,52 @@
+{
+  "_frame": "All positions in LAR frame: +X=North, +Y=East, +Z=Nadir, origin=LAR docking interface.",
+
+  "_section_thruster": "Hall-effect thruster — confirmed values from spec",
+  "thrust_N": 0.054,
+  "isp_s": 1485.0,
+
+  "_section_nozzle": [
+    "Fixed nozzle exit direction in end-effector (EE) frame.",
+    "The EE frame Z-axis is defined along the bracket axis (wrist → thruster tip).",
+    "n̂^E = [0,0,1] means plume exits in EE +Z (along bracket outward); thrust on spacecraft is in EE -Z.",
+    "PLACEHOLDER — confirm with hardware drawings before running feasibility maps."
+  ],
+  "nozzle_exit_direction_ee": [0.0, 0.0, 1.0],
+
+  "_section_masses": [
+    "Servicer mass breakdown. servicer_dry_mass_kg + propellant_mass_0_kg = initial total servicer mass.",
+    "The StackConfig.servicer_mass (735 kg default) represents the current total; split it here.",
+    "REQUIRED — set both fields before running CompositeMassModel."
+  ],
+  "client_mass_kg": 2500.0,
+  "servicer_dry_mass_kg": 600.0,
+  "propellant_mass_0_kg": 144.0,
+
+  "_section_cadence": "Nominal station-keeping burn cadence. 5h North + 5h South = 10 hr/day.",
+  "burn_cadence_hr_per_day": 10.0,
+  "mission_duration_days": 1825,
+
+  "_section_cog_positions": [
+    "CoG and tank positions in LAR frame [m].",
+    "null → auto-computed from StackConfig geometry (geometric bus centre as proxy).",
+    "Fill in once confirmed with structural model."
+  ],
+  "client_cog_lar_m": [null, null, null],
+  "servicer_dry_cog_lar_m": [null, null, null],
+  "tank_centroid_lar_m": [null, null, null],
+
+  "_section_constraints": "Feasibility filter thresholds — adjust based on mission requirements.",
+  "eps_CoG_m": 0.05,
+  "alpha_max_deg": 5.0,
+  "plume_beam_threshold_Wm2": 1e-6,
+
+  "_section_grid": "Joint-space grid resolution [N_q0, N_q1, N_q2]. 50^3 = 125k cells.",
+  "grid_resolution": [50, 50, 50],
+
+  "_section_epochs": [
+    "Mission epochs to evaluate [days from BOL].",
+    "Default: BOL + four evenly-spaced samples through EOL (1825 days = 5 yr mission).",
+    "Add intermediate epochs where CoG migration rate is high (near BOL for fresh propellant)."
+  ],
+  "epoch_schedule_days": [0, 456, 913, 1369, 1825]
+}
