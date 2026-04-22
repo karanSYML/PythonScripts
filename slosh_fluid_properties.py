@@ -211,4 +211,122 @@ for idx, (fk, df) in enumerate(results.items()):
 
 plt.savefig("slosh_fluid_properties.png", dpi=150, bbox_inches="tight")
 plt.show()
+plt.close()
 print("\nPlot saved: slosh_fluid_properties.png")
+
+
+# N2O Oxidiser tank 
+OX_TANK_VOLUME_M3 = 3.7E-3
+OX_M_TOTAL_KG = 2.4
+
+# C3H6 Fuel tank
+FU_TANK_VOLUME_M3 = 0.8E-3
+FU_M_TOTAL_KG = 0.32
+
+# TODO Similar plot as in @xenon_fluid_properties.py -> Line 196-232 (ax3.fig_add_subplot) 
+# but that is only for Xenon. In here I need two seperate plot for N2O and C3H6. 
+
+# -- Tank inventory config (mirrors Xe pattern) --------------------------------
+TANK_CONFIG = {
+    "N2O":  {"volume_m3": 3.7e-3, "m_total_kg": 2.4,  "crit_C": N2O_T_CRIT_C},
+    "C3H6": {"volume_m3": 0.8e-3, "m_total_kg": 0.32, "crit_C": None},
+}
+
+# -- Plots --------------------------------------------------------------------
+
+fig = plt.figure(figsize=(16, 16))
+fig.suptitle(
+    "Diphasic Properties for Slosh Analysis - N2O and C3H6 at Saturation\n"
+    f"(N2O capped at {N2O_T_CRIT_C} C | backend - {BACKEND})",
+    fontsize=11, fontweight="bold"
+)
+gs = gridspec.GridSpec(4, 2, figure=fig, hspace=0.52, wspace=0.35)  # 4 rows now
+
+# ... (keep existing rows 0-1 plots unchanged, just update gs references)
+fluid_plot(fig.add_subplot(gs[0, 0]), "P_sat_bar",  "Pressure [bar]",         "Saturation Pressure")
+fluid_plot(fig.add_subplot(gs[1, 0]), "sigma_Nm",   "Surface tension [mN/m]", "Surface Tension", scale=1e3)
+fluid_plot(fig.add_subplot(gs[1, 1]), "nu_liq_m2s", "nu [mm2/s]",             "Kinematic Viscosity (liquid)", scale=1e6)
+
+ax2 = fig.add_subplot(gs[0, 1])
+for fk, df in results.items():
+    if df.empty or "rho_liq" not in df.columns:
+        continue
+    ax2.plot(df["T_C"], df["rho_liq"], color=COLORS[fk], ls="-",  lw=2,   label=f"{fk} liquid")
+    ax2.plot(df["T_C"], df["rho_vap"], color=COLORS[fk], ls=":",  lw=1.5, label=f"{fk} vapor")
+ax2.set_xlabel("Temperature [C]")
+ax2.set_ylabel("Density [kg/m3]")
+ax2.set_title("Liquid & Vapor Density")
+ax2.legend(fontsize=8)
+ax2.grid(True, alpha=0.3)
+
+# -- Row 2: Bond numbers (unchanged, moved to gs[2, idx]) ---------------------
+bo_labels = list(G_LEVELS.keys())
+ls_map = ["-", "--", ":"]
+for idx, (fk, df) in enumerate(results.items()):
+    ax = fig.add_subplot(gs[2, idx])
+    ax.set_title(f"Bond Number — {fk}  (R={TANK_RADIUS_M} m)")
+    if df.empty:
+        ax.text(0.5, 0.5, "No data", transform=ax.transAxes, ha="center")
+        continue
+    for i, lbl in enumerate(bo_labels):
+        col = f"Bo_{lbl}"
+        if col in df.columns and df[col].notna().any():
+            ax.semilogy(df["T_C"], df[col], lw=2, ls=ls_map[i], label=lbl)
+    ax.axhline(1, color="k", lw=0.8, ls="-.", alpha=0.5, label="Bo=1 (transition)")
+    ax.set_xlabel("Temperature [C]")
+    ax.set_ylabel("Bond Number [-]")
+    ax.legend(fontsize=7)
+    ax.grid(True, which="both", alpha=0.3)
+
+# -- Row 3: Liquid mass per tank ----------------------------------------------
+for idx, (fk, df) in enumerate(results.items()):
+    cfg = TANK_CONFIG[fk]
+    V   = cfg["volume_m3"]
+    m_total = cfg["m_total_kg"]
+    crit_C  = cfg["crit_C"]
+
+    ax = fig.add_subplot(gs[3, idx])
+
+    if df.empty or "rho_liq" not in df.columns or "rho_vap" not in df.columns:
+        ax.text(0.5, 0.5, "No data", transform=ax.transAxes, ha="center")
+        continue
+
+    # Back-calculate implied fill fraction at T_MIN for validation
+    ref_row   = df.iloc[(df["T_C"] - T_MIN_C).abs().argmin()]
+    x_ref     = (m_total / V - ref_row["rho_vap"]) / (ref_row["rho_liq"] - ref_row["rho_vap"])
+    print(f"  [{fk}] Implied fill fraction at {T_MIN_C:.1f} C: {x_ref*100:.1f}%")
+    if not (0.0 < x_ref < 1.0):
+        print(f"  WARNING: x_ref={x_ref:.3f} outside (0,1) — check m_total or T_MIN_C")
+
+    # Two-phase liquid mass
+    x     = (m_total / V - df["rho_vap"]) / (df["rho_liq"] - df["rho_vap"])
+    m_liq = (x * V * df["rho_liq"]).copy()
+
+    # Ullage-collapsed regime: flat line at m_total
+    fully_liquid        = x >= 1.0
+    m_liq[fully_liquid] = m_total
+
+    ax.plot(df["T_C"], m_liq, color=COLORS[fk], ls=LS[fk], lw=2,
+            label=f"{fk}  (m_total={m_total:.2f} kg, fill={x_ref*100:.1f}% @ {T_MIN_C:.0f} C)")
+
+    if fully_liquid.any():
+        T_full = df.loc[fully_liquid, "T_C"].min()
+        ax.axvline(T_full, color=COLORS[fk], lw=0.8, ls="--", alpha=0.6)
+        ax.text(T_full + 0.3, m_total * 0.97, f"ullage gone\n@ {T_full:.1f} C",
+                fontsize=7, color=COLORS[fk], va="top")
+
+    if crit_C is not None:
+        ax.axvline(crit_C, color="grey", lw=0.8, ls=":", alpha=0.7)
+        ax.text(crit_C + 0.3, ax.get_ylim()[0] if ax.get_ylim()[0] > 0 else m_total * 0.05,
+                f"Tc={crit_C} C", fontsize=7, color="grey", va="bottom")
+
+    ax.set_xlabel("Temperature [C]")
+    ax.set_ylabel(f"{fk} Liquid Mass [kg]")
+    ax.set_title(f"Liquid Mass in {V*1e3:.1f} L sealed tank — {fk}  (fixed inventory)")
+    ax.legend(fontsize=8)
+    ax.grid(True, alpha=0.3)
+
+plt.savefig("slosh_fluid_properties_new.png", dpi=150, bbox_inches="tight")
+plt.show()
+plt.close()
+print("\nPlot saved: slosh_fluid_properties_new.png")
