@@ -36,6 +36,39 @@ from plume_impingement_pipeline import RoboticArmGeometry, StackConfig, arm_has_
 
 _Z_HAT = np.array([0.0, 0.0, 1.0])
 
+
+def _vrodrigues(axis: np.ndarray, angles: np.ndarray) -> np.ndarray:
+    """Vectorized Rodrigues rotation matrices for a fixed axis and grid of angles.
+
+    Parameters
+    ----------
+    axis   : (3,) unit rotation axis
+    angles : (...) array of rotation angles [rad]
+
+    Returns
+    -------
+    R : (*angles.shape, 3, 3)  rotation matrix for each angle
+    """
+    k = np.asarray(axis, dtype=float)
+    k = k / np.linalg.norm(k)
+    kx, ky, kz = k[0], k[1], k[2]
+
+    c  = np.cos(angles)
+    s  = np.sin(angles)
+    mc = 1.0 - c
+
+    R = np.zeros((*angles.shape, 3, 3))
+    R[..., 0, 0] = c + mc * kx * kx
+    R[..., 0, 1] = mc * kx * ky - s * kz
+    R[..., 0, 2] = mc * kx * kz + s * ky
+    R[..., 1, 0] = mc * ky * kx + s * kz
+    R[..., 1, 1] = c + mc * ky * ky
+    R[..., 1, 2] = mc * ky * kz - s * kx
+    R[..., 2, 0] = mc * kz * kx - s * ky
+    R[..., 2, 1] = mc * kz * ky + s * kx
+    R[..., 2, 2] = c + mc * kz * kz
+    return R
+
 # ---------------------------------------------------------------------------
 # Config dataclass
 # ---------------------------------------------------------------------------
@@ -107,62 +140,71 @@ def compute_static_cell_quantities(
     q0_grid: np.ndarray,
     q1_grid: np.ndarray,
     q2_grid: np.ndarray,
+    servicer_yaw_deg: float = 0.0,
 ) -> dict[str, np.ndarray]:
     """Compute p_nozzle_LAR and t_hat_LAR for every cell in the grid.
 
     Fully vectorized over the (N0, N1, N2) grid — no Python loops.
+    Uses the general serial-chain FK with Rodrigues rotations.
 
     Parameters
     ----------
-    arm       : arm geometry (link lengths)
-    pivot     : arm base in LAR frame, shape (3,)
-    n_hat_ee  : fixed nozzle exit direction in EE frame, shape (3,)
-                Plume exits along n̂^E; thrust axis = R_EE_LAR @ (-n̂^E).
-    q0/q1/q2_grid : joint angle meshgrids in radians, shape (N0, N1, N2)
+    arm              : arm geometry (joint axes, link body-frame vectors)
+    pivot            : Hinge-1 position in LAR frame, shape (3,)
+    n_hat_ee         : nozzle exit direction in link-3 body frame (= TA frame at q=0)
+                       Plume exits along n̂; thrust on spacecraft is along −n̂.
+    q0/q1/q2_grid    : joint angle meshgrids in radians, shape (N0, N1, N2)
+    servicer_yaw_deg : servicer body yaw relative to LAR [deg]; rotates TA body
+                       vectors to LAR before FK composition
 
     Returns
     -------
     dict with:
-      'p_elbow'    : (N0, N1, N2, 3) — elbow joint position in LAR
-      'p_wrist'    : (N0, N1, N2, 3) — wrist joint position in LAR
-      'p_nozzle'   : (N0, N1, N2, 3) — thruster exit position in LAR
-      't_hat'      : (N0, N1, N2, 3) — thrust axis unit vector in LAR
-      'd_bracket'  : (N0, N1, N2, 3) — bracket direction (EE X-axis) in LAR
+      'p_elbow'   : (N0, N1, N2, 3) — Hinge-2 (elbow) position in LAR
+      'p_wrist'   : (N0, N1, N2, 3) — Hinge-3 (wrist) position in LAR
+      'p_nozzle'  : (N0, N1, N2, 3) — thruster exit position in LAR
+      't_hat'     : (N0, N1, N2, 3) — thrust axis (−nozzle direction) in LAR
+      'd_bracket' : (N0, N1, N2, 3) — bracket direction (H3→nozzle unit vec) in LAR
     """
-    n_hat_ee = np.asarray(n_hat_ee, dtype=float)
-    nx, ny, nz = n_hat_ee[0], n_hat_ee[1], n_hat_ee[2]
+    n_hat = np.asarray(n_hat_ee, dtype=float)
 
-    L1 = arm.link1_length
-    L2 = arm.link2_length
-    L3 = arm.bracket_length
+    # Servicer-yaw rotation: TA body frame → LAR frame
+    c_s, s_s = np.cos(np.radians(servicer_yaw_deg)), np.sin(np.radians(servicer_yaw_deg))
+    Rz_s = np.array([[c_s, -s_s, 0.], [s_s, c_s, 0.], [0., 0., 1.]])
 
-    # Expand for broadcasting: (N0,1,1) and (1,N1,N2)
-    c0 = np.cos(q0_grid)[..., np.newaxis]    # (N0,N1,N2,1) after below
-    s0 = np.sin(q0_grid)[..., np.newaxis]
-    q12 = q1_grid + q2_grid                  # (N0,N1,N2)
-    c1  = np.cos(q1_grid)[..., np.newaxis]
-    s1  = np.sin(q1_grid)[..., np.newaxis]
-    c12 = np.cos(q12)[..., np.newaxis]       # (N0,N1,N2,1) for broadcasting with (3,)
-    s12 = np.sin(q12)[..., np.newaxis]
+    # Vectorized Rodrigues rotation matrices over the joint-angle grids
+    # Shape: (N0, N1, N2, 3, 3) for each
+    R1_ta  = _vrodrigues(arm.axis1, q0_grid)   # joint-1 rotation in TA frame
+    R2_ta  = _vrodrigues(arm.axis2, q1_grid)   # joint-2 rotation in TA frame
+    R3_ta  = _vrodrigues(arm.axis3, q2_grid)   # joint-3 rotation in TA frame
 
-    # Horizontal yaw direction: u_rad = [cos(q0), sin(q0), 0], shape (N0,N1,N2,3)
-    zeros = np.zeros_like(c0)
-    u_rad = np.concatenate([c0, s0, zeros], axis=-1)  # (N0,N1,N2,3)
+    # Cumulative rotations in LAR frame: CR_i = Rz_s @ R1 @ ... @ Ri
+    # np.einsum('ij,...jk->...ik', Rz_s, R) left-multiplies Rz_s onto each cell matrix
+    R12_ta  = np.einsum('...ij,...jk->...ik', R1_ta,  R2_ta)   # R1 @ R2 in TA
+    R123_ta = np.einsum('...ij,...jk->...ik', R12_ta, R3_ta)   # R1 @ R2 @ R3 in TA
 
-    # EE frame axes in LAR (see module docstring for derivation)
-    d_link2   = c1  * u_rad + s1  * _Z_HAT   # link-2 direction (N0,N1,N2,3)
-    d_bracket = c12 * u_rad + s12 * _Z_HAT   # X_EE_LAR (N0,N1,N2,3)
-    y_ee = np.concatenate([-s0, c0, zeros], axis=-1)   # Y_EE_LAR (N0,N1,N2,3)
-    z_ee = -s12 * u_rad + c12 * _Z_HAT                 # Z_EE_LAR (N0,N1,N2,3)
+    CR1   = np.einsum('ij,...jk->...ik', Rz_s, R1_ta)    # (N0,N1,N2,3,3) in LAR
+    CR12  = np.einsum('ij,...jk->...ik', Rz_s, R12_ta)
+    CR123 = np.einsum('ij,...jk->...ik', Rz_s, R123_ta)
 
-    # Arm positions in LAR frame
-    p_elbow  = pivot + L1 * u_rad
-    p_wrist  = p_elbow + L2 * d_link2
-    p_nozzle = p_wrist + L3 * d_bracket
+    # Apply to link body-frame vectors → LAR-frame displacements per cell
+    # np.einsum('...ij,j->...i', R, d) applies R[cell] to fixed vector d
+    d1_lar = np.einsum('...ij,j->...i', CR1,   arm.d_h1h2)   # (N0,N1,N2,3)
+    d2_lar = np.einsum('...ij,j->...i', CR12,  arm.d_h2h3)
+    d3_lar = np.einsum('...ij,j->...i', CR123, arm.d_h3n)
 
-    # Thrust axis: t̂ = R_EE_LAR @ (-n̂^E) = -nx*X_EE - ny*Y_EE - nz*Z_EE
-    t_hat = -nx * d_bracket - ny * y_ee - nz * z_ee
-    # Normalize (should already be unit length for unit n̂^E, but floating-point safety)
+    # Joint and nozzle positions in LAR
+    p_elbow  = pivot + d1_lar                # (N0,N1,N2,3)
+    p_wrist  = p_elbow + d2_lar
+    p_nozzle = p_wrist + d3_lar
+
+    # Bracket direction (Hinge-3 → nozzle, unit vector in LAR)
+    d3_norm = np.linalg.norm(d3_lar, axis=-1, keepdims=True)
+    d_bracket = d3_lar / np.where(d3_norm > 0, d3_norm, 1.0)
+
+    # Thrust axis: spacecraft is pushed in direction opposite to nozzle exit
+    # t̂ = −(CR123 @ n̂_body)
+    t_hat = -np.einsum('...ij,j->...i', CR123, n_hat)
     t_norm = np.linalg.norm(t_hat, axis=-1, keepdims=True)
     t_hat = t_hat / np.where(t_norm > 0, t_norm, 1.0)
 

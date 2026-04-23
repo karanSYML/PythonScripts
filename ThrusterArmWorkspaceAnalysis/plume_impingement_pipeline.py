@@ -33,6 +33,25 @@ from typing import List, Tuple, Optional, Dict, Union
 import warnings
 
 # ---------------------------------------------------------------------------
+# Rodrigues rotation helper (used by RoboticArmGeometry.forward_kinematics
+# and arm_kinematics.arm_fk_transforms for the general serial chain)
+# ---------------------------------------------------------------------------
+
+def _rodrigues(axis: np.ndarray, angle: float) -> np.ndarray:
+    """3×3 rotation matrix for rotating `angle` radians about unit `axis`."""
+    k = np.asarray(axis, dtype=float)
+    k = k / np.linalg.norm(k)
+    kx, ky, kz = k
+    c, s = np.cos(angle), np.sin(angle)
+    mc = 1.0 - c
+    return np.array([
+        [c + mc*kx*kx,     mc*kx*ky - s*kz,  mc*kx*kz + s*ky],
+        [mc*ky*kx + s*kz,  c + mc*ky*ky,      mc*ky*kz - s*kx],
+        [mc*kz*kx - s*ky,  mc*kz*ky + s*kx,   c + mc*kz*kz  ],
+    ])
+
+
+# ---------------------------------------------------------------------------
 # 1.  DATA CLASSES – Parameter Definitions
 # ---------------------------------------------------------------------------
 
@@ -63,46 +82,74 @@ class ArmGeometry:
 
 @dataclass
 class RoboticArmGeometry:
-    """3-DOF robotic arm: J1 shoulder yaw (q0) + J2 elbow pitch (q1) + J3 wrist pitch (q2).
+    """3-DOF thruster arm: J1 root yaw (q0) + J2 elbow (q1) + J3 wrist (q2).
 
-    Physical structure (per URDF spec)
-    ------------------------------------
-    J1  Shoulder Yaw  – revolute about +Z at pivot base       → Link 1 (L1, always horizontal)
-    J2  Elbow Pitch   – revolute ⊥ to Link 1 at elbow         → Link 2 (L2)
-    J3  Wrist Pitch   – revolute ⊥ to Link 2 at wrist         → Bracket (L3)
-    Thruster frame    – fixed at end of bracket
-
-    Link properties (baseline from URDF spec)
-    ------------------------------------------
-    Link 1  : 1.12 m, 10 kg  (shoulder → elbow)
-    Link 2  : 1.40 m, 10 kg  (elbow → wrist)
-    Bracket : 0.50 m, 15 kg  (wrist → thruster exit)
-    Total reach (straight) : 3.02 m
-
-    Zero / stowed configuration
-    ----------------------------
-    (q0, q1, q2) = (0°, 0°, 0°) represents the arm fully stowed against the hub.
-    In this configuration all links are horizontal, pointing in the +X direction
-    of the LAR frame (after the servicer yaw rotation is applied to the pivot).
-
-    Forward kinematics (LAR frame)
+    Arm reference frame (TA frame)
     --------------------------------
-    u_rad      = [cos(q0), sin(q0), 0]          # horizontal yaw direction
-    d_link2    = cos(q1)*u_rad + sin(q1)*Z_hat  # link 2 direction (q1 pitches at elbow)
-    d_bracket  = cos(q1+q2)*u_rad + sin(q1+q2)*Z_hat  # bracket direction
+    Origin at the centre of the root-hinge bracket. Axes align with the
+    servicer body frame (same orientation, different origin).
+    TA-origin offset from servicer geometric centre: see ta_origin_{x,y,z}.
 
-    p_elbow    = pivot + L1 * u_rad             # link 1 always horizontal
-    p_wrist    = p_elbow + L2 * d_link2
-    p_thruster = p_wrist  + L3 * d_bracket
+    Hinge / link data (stowed positions in TA frame, mm → m)
+    ----------------------------------------------------------
+    Hinge 1 (Root) : (0, 0, 251.75) mm        axis (0, 0, −1)
+    Hinge 2 (Elbow): (−120, −1102.88, 151.75) mm  axis (1, 0, 0)
+    Hinge 3 (Wrist): (−220, 416.3, 177.7) mm    axis (0, −0.3746, 0.9272)
+    Nozzle         : (259.77, 349.53, 183.70) mm
+    Nozzle direction in TA frame: (0.1455, 0.9189, 0.3666)
 
-    IK note: link 1 is fixed horizontal so the elbow is at (pivot + L1·u_rad).
-    The problem reduces to 2R planar IK from the elbow using L2 and L3.
+    Forward kinematics (general serial chain, Rodrigues formula)
+    -------------------------------------------------------------
+    R1 = Rodrigues(axis1, q0)
+    R2 = R1 @ Rodrigues(axis2, q1)   (axis2 in link-1 body frame = TA at q=0)
+    R3 = R2 @ Rodrigues(axis3, q2)   (axis3 in link-2 body frame = TA at q=0)
+
+    In LAR frame (accounting for servicer yaw Rz_s):
+    p_h2     = p_h1 + (Rz_s @ R1) @ d_h1h2
+    p_h3     = p_h2 + (Rz_s @ R2) @ d_h2h3
+    p_nozzle = p_h3 + (Rz_s @ R3) @ d_h3n
+    t_hat    = −(Rz_s @ R3) @ n_hat_body
     """
-    link1_length:   float = 1.12   # m   shoulder → elbow   (J2 pivot)
+    # ── Arm body geometry ──────────────────────────────────────────────────
+
+    # TA-frame origin in servicer body frame [m]
+    ta_origin_x: float = -0.12891
+    ta_origin_y: float =  0.31619
+    ta_origin_z: float =  0.35600
+
+    # Hinge 1 (root joint) position in TA frame [m]
+    h1_ta_x: float = 0.0
+    h1_ta_y: float = 0.0
+    h1_ta_z: float = 0.25175
+
+    # Link body-frame vectors at stowed config (q=0) [m]
+    # Derived from stowed positions: d_hXhY = p_hY_stowed − p_hX_stowed
+    d_h1h2: np.ndarray = field(
+        default_factory=lambda: np.array([-0.12000, -1.10288, -0.10000]))
+    d_h2h3: np.ndarray = field(
+        default_factory=lambda: np.array([-0.10000,  1.51918,  0.02595]))
+    d_h3n:  np.ndarray = field(
+        default_factory=lambda: np.array([ 0.47977, -0.06677,  0.00600]))
+
+    # Joint rotation axes in TA body frame at stowed config
+    axis1: np.ndarray = field(
+        default_factory=lambda: np.array([ 0.0,     0.0,    -1.0   ]))
+    axis2: np.ndarray = field(
+        default_factory=lambda: np.array([ 1.0,     0.0,     0.0   ]))
+    axis3: np.ndarray = field(
+        default_factory=lambda: np.array([ 0.0,    -0.3746,  0.9272]))
+
+    # Nozzle exit direction in link-3 body frame (= TA frame at q=0)
+    n_hat_body: np.ndarray = field(
+        default_factory=lambda: np.array([0.1455, 0.9189, 0.3666]))
+
+    # ── Link scalar properties ─────────────────────────────────────────────
+    # Lengths derived from |d_hXhY|: L1≈1.1139 m, L2≈1.5227 m, L3≈0.4844 m
+    link1_length:   float = 1.1139
     link1_mass:     float = 10.0   # kg
-    link2_length:   float = 1.40   # m   elbow    → wrist   (J3 pivot)
+    link2_length:   float = 1.5227
     link2_mass:     float = 10.0   # kg
-    bracket_length: float = 0.5    # m   wrist    → thruster exit
+    bracket_length: float = 0.4844
     bracket_mass:   float = 15.0   # kg
 
     # Per-link CoM offset along the link axis from the proximal joint [m]
@@ -117,17 +164,19 @@ class RoboticArmGeometry:
     link2_inertia:   Optional[np.ndarray] = field(default=None, repr=False)
     bracket_inertia: Optional[np.ndarray] = field(default=None, repr=False)
 
-    # Pivot position offset from the servicer geometric centre
-    pivot_offset_x: float = 0.174    # m
-    pivot_offset_y: float = 0.350    # m
-    pivot_offset_z: float = 0.5      # m  (0 = at servicer +Z face)
+    # ── Pivot offset (Hinge 1 from servicer origin, used by legacy formulas) ──
+    # Set to full offset so pivot_position() in geometry_visualizer works
+    # without adding servicer_bus_z/2. Use arm_pivot_in_servicer_body() instead.
+    pivot_offset_x: float = -0.12891   # m  from servicer geometric centre
+    pivot_offset_y: float =  0.31619   # m
+    pivot_offset_z: float =  0.60775   # m  (= ta_origin_z + h1_ta_z)
 
-    # Joint angle limits [deg]
-    q0_min_deg: float =   0.0    # J1 shoulder yaw
+    # ── Joint angle limits [deg] ───────────────────────────────────────────
+    q0_min_deg: float =   0.0    # J1 root yaw
     q0_max_deg: float = 270.0
-    q1_min_deg: float =   0.0    # J2 elbow pitch
+    q1_min_deg: float =   0.0    # J2 elbow
     q1_max_deg: float = 235.0
-    q2_min_deg: float = -36.0    # J3 wrist pitch
+    q2_min_deg: float = -36.0    # J3 wrist
     q2_max_deg: float =  99.0
 
     # Desired shoulder yaw (primary sweep parameter, set before IK solve)
@@ -135,13 +184,30 @@ class RoboticArmGeometry:
     # Elbow configuration preference
     elbow_up: bool = True
 
+    # ------------------------------------------------------------------
+    # Pivot helper
+    # ------------------------------------------------------------------
+
+    def arm_pivot_in_servicer_body(self) -> np.ndarray:
+        """Hinge 1 (arm root joint) position in servicer body frame [m].
+
+        = TA-origin offset + Hinge-1 offset in TA frame.
+        Use this instead of the pivot_offset_* scalars to avoid the
+        servicer_bus_z/2 ambiguity in legacy formulas.
+        """
+        return np.array([
+            self.ta_origin_x + self.h1_ta_x,
+            self.ta_origin_y + self.h1_ta_y,
+            self.ta_origin_z + self.h1_ta_z,
+        ])
+
+    # ------------------------------------------------------------------
+    # Arm summary helpers
+    # ------------------------------------------------------------------
+
     @staticmethod
     def stowed_joint_angles_deg() -> Tuple[float, float, float]:
-        """Return the stowed (home) joint angles in degrees: (q0, q1, q2) = (0, 0, 0).
-
-        At these angles the arm lies horizontal along the +X direction of the LAR frame
-        (after servicer yaw), folded against the hub.
-        """
+        """Return the stowed (home) joint angles: (q0, q1, q2) = (0°, 0°, 0°)."""
         return (0.0, 0.0, 0.0)
 
     def arm_reach(self) -> float:
@@ -153,17 +219,17 @@ class RoboticArmGeometry:
         return self.link1_mass + self.link2_mass + self.bracket_mass
 
     def effective_link1_com(self) -> float:
-        """CoM offset along link 1 axis from J1 joint [m]."""
+        """CoM offset along link 1 axis from Hinge 1 [m]."""
         return self.link1_com_offset if self.link1_com_offset is not None \
                else 0.5 * self.link1_length
 
     def effective_link2_com(self) -> float:
-        """CoM offset along link 2 axis from J2 joint [m]."""
+        """CoM offset along link 2 axis from Hinge 2 [m]."""
         return self.link2_com_offset if self.link2_com_offset is not None \
                else 0.5 * self.link2_length
 
     def effective_bracket_com(self) -> float:
-        """CoM offset along bracket axis from J3 joint [m]."""
+        """CoM offset along bracket axis from Hinge 3 [m]."""
         return self.bracket_com_offset if self.bracket_com_offset is not None \
                else 0.5 * self.bracket_length
 
@@ -189,27 +255,33 @@ class RoboticArmGeometry:
         return np.diag([0.0, I_t, I_t])
 
     def forward_kinematics(self, pivot: np.ndarray,
-                           q0: float, q1: float, q2: float
+                           q0: float, q1: float, q2: float,
+                           servicer_yaw_deg: float = 0.0,
                            ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """Return (p_elbow, p_wrist, p_thruster) given joint angles in radians.
+        """Return (p_h2/elbow, p_h3/wrist, p_nozzle) given joint angles [rad].
 
-        Joint convention:
-          J1 (q0): shoulder yaw — rotates link 1 about Z; link 1 is always horizontal.
-          J2 (q1): elbow pitch  — pitches link 2 relative to link 1 in the yaw plane.
-          J3 (q2): wrist pitch  — pitches bracket relative to link 2.
+        General serial-chain FK using the Rodrigues formula. `pivot` is Hinge 1
+        in the LAR frame (output of compute_pivot / arm_pivot_in_servicer_body).
+        `servicer_yaw_deg` rotates TA-frame body vectors into LAR.
+
+        Returns positions in LAR frame.
         """
-        u_rad = np.array([np.cos(q0), np.sin(q0), 0.0])   # horizontal yaw direction
-        u_z   = np.array([0.0, 0.0, 1.0])
+        c_s, s_s = np.cos(np.radians(servicer_yaw_deg)), np.sin(np.radians(servicer_yaw_deg))
+        Rz_s = np.array([[c_s, -s_s, 0.], [s_s, c_s, 0.], [0., 0., 1.]])
 
-        # Link 1 is always horizontal; only q0 sweeps it in the XY plane.
-        # q1 pitches link 2 at the elbow; q1+q2 pitches the bracket at the wrist.
-        d_link2   = np.cos(q1)      * u_rad + np.sin(q1)      * u_z
-        d_bracket = np.cos(q1 + q2) * u_rad + np.sin(q1 + q2) * u_z
+        R1 = _rodrigues(self.axis1, q0)
+        R2 = R1 @ _rodrigues(self.axis2, q1)
+        R3 = R2 @ _rodrigues(self.axis3, q2)
 
-        p_elbow    = pivot   + self.link1_length   * u_rad       # elbow always horizontal
-        p_wrist    = p_elbow + self.link2_length   * d_link2
-        p_thruster = p_wrist + self.bracket_length * d_bracket
-        return p_elbow, p_wrist, p_thruster
+        # Rotate cumulative FK matrices into LAR frame
+        CR1 = Rz_s @ R1
+        CR2 = Rz_s @ R2
+        CR3 = Rz_s @ R3
+
+        p_h2     = pivot + CR1 @ self.d_h1h2
+        p_h3     = p_h2  + CR2 @ self.d_h2h3
+        p_nozzle = p_h3  + CR3 @ self.d_h3n
+        return p_h2, p_h3, p_nozzle
 
     def inverse_kinematics(self, pivot: np.ndarray, target: np.ndarray,
                            elbow_up: bool = True
@@ -593,14 +665,9 @@ class GeometryEngine:
         return pivot + self.arm.arm_length * arm_dir
 
     def _pivot_position(self) -> np.ndarray:
-        """Pivot position in LAR frame (robotic arm base)."""
+        """Pivot (Hinge 1) position in LAR frame."""
         servicer_origin = self.stack.servicer_origin_in_lar_frame()
-        return np.array([
-            servicer_origin[0] + self.arm.pivot_offset_x,
-            servicer_origin[1] + self.arm.pivot_offset_y,
-            # Pivot is on servicer +Z face — the face closest to the LAR (least negative Z)
-            servicer_origin[2] + self.stack.servicer_bus_z / 2.0 + self.arm.pivot_offset_z
-        ])
+        return servicer_origin + self.arm.arm_pivot_in_servicer_body()
 
     def _thruster_position_ik(self) -> np.ndarray:
         """Robotic arm: IK to find joint angles, then FK to get thruster position.

@@ -88,19 +88,15 @@ class FeasibilityMapResult:
 def compute_pivot(arm: RoboticArmGeometry,
                   stack: StackConfig,
                   servicer_yaw_deg: float = 0.0) -> np.ndarray:
-    """Compute arm pivot position in LAR frame.
+    """Compute Hinge-1 (arm root joint) position in LAR frame.
 
-    The pivot is on the servicer +Z face (the face closest to the LAR
-    interface). The pivot offset is expressed in the servicer body frame
-    and rotated into LAR by the servicer yaw.
+    Uses arm.arm_pivot_in_servicer_body() for the offset in servicer body frame,
+    then rotates by the servicer yaw into the LAR frame.
     """
     origin = stack.servicer_origin_in_lar_frame()
     c, s   = np.cos(np.radians(servicer_yaw_deg)), np.sin(np.radians(servicer_yaw_deg))
     Rz     = np.array([[c, -s, 0.], [s, c, 0.], [0., 0., 1.]])
-    offset_body = np.array([arm.pivot_offset_x,
-                             arm.pivot_offset_y,
-                             stack.servicer_bus_z / 2.0 + arm.pivot_offset_z])
-    return origin + Rz @ offset_body
+    return origin + Rz @ arm.arm_pivot_in_servicer_body()
 
 
 # ---------------------------------------------------------------------------
@@ -157,7 +153,8 @@ def build_feasibility_maps(
     # ------------------------------------------------------------------
     if verbose:
         print("Computing static cell quantities (FK, thrust axis)...")
-    cq = compute_static_cell_quantities(arm, pivot, n_hat_ee, q0g, q1g, q2g)
+    cq = compute_static_cell_quantities(arm, pivot, n_hat_ee, q0g, q1g, q2g,
+                                        servicer_yaw_deg=servicer_yaw_deg)
     p_nozzle = cq['p_nozzle']   # (N0,N1,N2,3)
     t_hat    = cq['t_hat']      # (N0,N1,N2,3)
 

@@ -500,7 +500,8 @@ def main():
     # ── 1. Joint grid + static cell quantities ─────────────────────────────
     print("\nBuilding grid and static cell quantities...")
     q0g, q1g, q2g = build_joint_grid(ARM, GRID_RESOLUTION)
-    cq = compute_static_cell_quantities(ARM, pivot, n_hat_ee, q0g, q1g, q2g)
+    cq = compute_static_cell_quantities(ARM, pivot, n_hat_ee, q0g, q1g, q2g,
+                                        servicer_yaw_deg=SERVICER_YAW_DEG)
 
     # ── 2. F_kin: collision + joint limit mask ─────────────────────────────
     print("Computing collision mask (F_kin)...")

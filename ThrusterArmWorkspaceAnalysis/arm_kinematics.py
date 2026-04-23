@@ -24,6 +24,8 @@ from typing import TYPE_CHECKING, Tuple
 if TYPE_CHECKING:
     from plume_impingement_pipeline import RoboticArmGeometry
 
+from plume_impingement_pipeline import _rodrigues
+
 
 # ---------------------------------------------------------------------------
 # Spatial (Plücker) transform utility
@@ -58,90 +60,65 @@ def spatial_transform_from_homogeneous(T: np.ndarray) -> np.ndarray:
 
 def arm_fk_transforms(arm: RoboticArmGeometry,
                        pivot: np.ndarray,
-                       q: np.ndarray) -> dict[str, np.ndarray]:
+                       q: np.ndarray,
+                       servicer_yaw_deg: float = 0.0) -> dict[str, np.ndarray]:
     """Full 4×4 homogeneous transform chain in the LAR frame.
 
     Convention: T_world_X maps points from frame X to the LAR/world frame,
     i.e. p_world = T_world_X @ np.array([*p_in_X, 1]).
 
-    Local relative transforms T_A_B map points from frame B to frame A,
-    i.e. p_A = T_A_B @ np.array([*p_in_B, 1]).
-
-    Joint rotation convention
-    -------------------------
-    Link 1 is always horizontal (parallel to the servicer +Z face); only J1
-    (q0) sweeps it. J2 (q1) pitches link 2 at the elbow: in the elbow frame
-    the link-2 direction is cos(q1)·X̂ + sin(q1)·Ẑ, corresponding to Ry(−q1)
-    acting on X̂. J3 (q2) pitches the bracket at the wrist by the same
-    convention with Ry(−q2).
+    General serial-chain FK using Rodrigues rotations. `pivot` is Hinge 1
+    in LAR frame. Joint axes and link vectors are in TA body frame and are
+    rotated to LAR by Rz_serv (servicer yaw).
 
     Returns
     -------
     dict with keys:
-      'T_world_j1'     4×4  LAR frame ← j1 frame  (after shoulder yaw)
-      'T_world_elbow'  4×4  LAR frame ← elbow frame
-      'T_world_wrist'  4×4  LAR frame ← wrist frame
-      'T_world_ee'     4×4  LAR frame ← thruster-exit frame
-      'T_j1_elbow'     4×4  j1 frame  ← elbow frame  (local, joint-angle dependent)
-      'T_elbow_wrist'  4×4  elbow     ← wrist  (local)
-      'T_wrist_ee'     4×4  wrist     ← EE     (fixed, no joint here)
+      'T_world_j1'     4×4  LAR frame ← j1 frame  (after Hinge-1 rotation)
+      'T_world_elbow'  4×4  LAR frame ← Hinge-2 (elbow) frame
+      'T_world_wrist'  4×4  LAR frame ← Hinge-3 (wrist) frame
+      'T_world_ee'     4×4  LAR frame ← nozzle (EE) frame
+      'T_j1_elbow'     4×4  j1 frame  ← elbow frame  (local)
+      'T_elbow_wrist'  4×4  elbow     ← wrist frame  (local)
+      'T_wrist_ee'     4×4  wrist     ← EE frame     (fixed, no joint at nozzle)
     """
     q0, q1, q2 = float(q[0]), float(q[1]), float(q[2])
-    c0, s0 = np.cos(q0), np.sin(q0)
-    c1, s1 = np.cos(q1), np.sin(q1)
-    c2, s2 = np.cos(q2), np.sin(q2)
 
-    L1 = arm.link1_length
-    L2 = arm.link2_length
-    L3 = arm.bracket_length
+    # Servicer yaw: rotates TA body frame into LAR
+    c_s, s_s = np.cos(np.radians(servicer_yaw_deg)), np.sin(np.radians(servicer_yaw_deg))
+    Rz_s = np.array([[c_s, -s_s, 0.], [s_s, c_s, 0.], [0., 0., 1.]])
 
-    # Rotation about Z by q0  (shoulder yaw)
-    Rz = np.array([[c0, -s0, 0.0],
-                   [s0,  c0, 0.0],
-                   [0.0, 0.0, 1.0]])
+    # Joint rotations in TA body frame
+    R1_ta = _rodrigues(arm.axis1, q0)
+    R2_ta = _rodrigues(arm.axis2, q1)
+    R3_ta = _rodrigues(arm.axis3, q2)
 
-    # Rotation about Y by −q1  (elbow pitch upward)
-    # Ry(−θ) = [cθ, 0, −sθ; 0, 1, 0; sθ, 0, cθ] — maps X̂ → cos θ·X̂ + sin θ·Ẑ
-    Ry_neg1 = np.array([[ c1, 0.0, -s1],
-                         [0.0, 1.0,  0.0],
-                         [ s1, 0.0,  c1]])
+    # Cumulative rotations in LAR frame (Rz_s @ R_ta_cumulative)
+    CR1  = Rz_s @ R1_ta
+    CR12 = Rz_s @ (R1_ta @ R2_ta)
+    CR3_local = R3_ta               # wrist → EE rotation in wrist body frame
 
-    # Rotation about Y by −q2  (wrist pitch)
-    Ry_neg2 = np.array([[ c2, 0.0, -s2],
-                         [0.0, 1.0,  0.0],
-                         [ s2, 0.0,  c2]])
+    # Link vectors in LAR frame
+    d12_lar = CR1  @ arm.d_h1h2
+    d23_lar = CR12 @ arm.d_h2h3
+    CR123 = CR12 @ R3_ta
+    d3n_lar = CR123 @ arm.d_h3n
 
-    # --- Local transforms (child frame origin expressed in parent frame) ---
+    # Absolute joint positions in LAR
+    p_h2     = pivot + d12_lar
+    p_h3     = p_h2  + d23_lar
+    p_nozzle = p_h3  + d3n_lar
 
-    # j1 frame: apply yaw rotation at the pivot
-    T_world_j1 = np.eye(4)
-    T_world_j1[:3, :3] = Rz
-    T_world_j1[:3,  3] = pivot
+    # --- Absolute transforms ---
+    T_world_j1    = np.eye(4); T_world_j1[:3, :3]    = CR1;  T_world_j1[:3, 3]    = pivot
+    T_world_elbow = np.eye(4); T_world_elbow[:3, :3]  = CR12; T_world_elbow[:3, 3]  = p_h2
+    T_world_wrist = np.eye(4); T_world_wrist[:3, :3]  = CR123; T_world_wrist[:3, 3] = p_h3
+    T_world_ee    = np.eye(4); T_world_ee[:3, :3]     = CR123; T_world_ee[:3, 3]    = p_nozzle
 
-    # Elbow frame: link 1 is always horizontal (no pitch at shoulder).
-    # Elbow origin in j1 frame is L1 along local X̂; no rotation change.
-    T_j1_elbow = np.eye(4)
-    T_j1_elbow[:3, :3] = np.eye(3)
-    T_j1_elbow[:3,  3] = np.array([L1, 0.0, 0.0])
-
-    # Wrist frame: q1 pitches link 2 at the elbow about local Y.
-    # Ry(−q1) maps local X̂ → cos(q1)·X̂ + sin(q1)·Ẑ (link 2 direction).
-    # Wrist origin in elbow frame: Ry_neg1 @ [L2, 0, 0]ᵀ = [L2·c1, 0, L2·s1]ᵀ
-    T_elbow_wrist = np.eye(4)
-    T_elbow_wrist[:3, :3] = Ry_neg1
-    T_elbow_wrist[:3,  3] = np.array([L2 * c1, 0.0, L2 * s1])
-
-    # EE frame: q2 pitches the bracket at the wrist about local Y.
-    # Ry(−q2) maps local X̂ → cos(q2)·X̂ + sin(q2)·Ẑ (bracket direction).
-    # EE origin in wrist frame: Ry_neg2 @ [L3, 0, 0]ᵀ = [L3·c2, 0, L3·s2]ᵀ
-    T_wrist_ee = np.eye(4)
-    T_wrist_ee[:3, :3] = Ry_neg2
-    T_wrist_ee[:3,  3] = np.array([L3 * c2, 0.0, L3 * s2])
-
-    # --- Absolute transforms (compose for full chain) ---
-    T_world_elbow = T_world_j1 @ T_j1_elbow
-    T_world_wrist = T_world_elbow @ T_elbow_wrist
-    T_world_ee    = T_world_wrist @ T_wrist_ee
+    # --- Local transforms (expressed in parent body frame) ---
+    T_j1_elbow    = np.eye(4); T_j1_elbow[:3, :3]    = R2_ta;    T_j1_elbow[:3, 3]    = arm.d_h1h2
+    T_elbow_wrist = np.eye(4); T_elbow_wrist[:3, :3]  = R3_ta;    T_elbow_wrist[:3, 3]  = arm.d_h2h3
+    T_wrist_ee    = np.eye(4); T_wrist_ee[:3, :3]     = np.eye(3); T_wrist_ee[:3, 3]    = arm.d_h3n
 
     return {
         'T_world_j1':    T_world_j1,
@@ -186,99 +163,80 @@ def build_6d_inertia(mass: float,
 
 def arm_cog_and_jacobian(arm: RoboticArmGeometry,
                           pivot: np.ndarray,
-                          q: np.ndarray
+                          q: np.ndarray,
+                          servicer_yaw_deg: float = 0.0,
                           ) -> Tuple[np.ndarray, np.ndarray]:
-    """Compute the arm CoG position and centroidal Jacobian.
+    """Compute the arm CoG position and centroidal velocity Jacobian.
 
-    Uses the direct analytical approach exploiting the yaw-pitch-pitch
-    structure: after the shoulder yaw (q0), links 1, 2, and the bracket
-    all move in the same vertical plane, giving clean closed-form partials.
-
-    Port of dtma_get_cog_and_jacobian.m.
+    General serial-chain implementation using cross-product Jacobian columns.
+    Port of dtma_get_cog_and_jacobian.m, updated for the real hardware geometry.
 
     Parameters
     ----------
-    arm    : RoboticArmGeometry  (inertia fields used if set, else thin-rod defaults)
-    pivot  : (3,) LAR-frame position of the arm base (shoulder joint)
-    q      : (3,) joint angles [q0, q1, q2] in radians
+    arm              : RoboticArmGeometry
+    pivot            : (3,) Hinge-1 position in LAR frame
+    q                : (3,) joint angles [q0, q1, q2] in radians
+    servicer_yaw_deg : servicer body yaw relative to LAR [deg]
 
     Returns
     -------
-    cog    : (3,) arm centre-of-gravity in LAR frame [m]
-    J_cog  : (3, 3) centroidal Jacobian  J  such that  ṗ_cog = J @ q̇
+    cog   : (3,) arm CoG in LAR frame [m]
+    J_cog : (3, 3)  ṗ_cog = J_cog @ q̇
     """
     q0, q1, q2 = float(q[0]), float(q[1]), float(q[2])
 
-    c0, s0   = np.cos(q0), np.sin(q0)
-    c1, s1   = np.cos(q1), np.sin(q1)
-    c12, s12 = np.cos(q1 + q2), np.sin(q1 + q2)
+    c_s, s_s = np.cos(np.radians(servicer_yaw_deg)), np.sin(np.radians(servicer_yaw_deg))
+    Rz_s = np.array([[c_s, -s_s, 0.], [s_s, c_s, 0.], [0., 0., 1.]])
 
-    # Unit vectors in LAR frame
-    u_rad  = np.array([c0,  s0,  0.0])   # horizontal, in yaw direction
-    u_perp = np.array([-s0, c0,  0.0])   # horizontal, perpendicular to yaw
-    u_z    = np.array([0.0, 0.0, 1.0])   # vertical
+    # Cumulative FK rotations in LAR frame
+    R1_ta  = _rodrigues(arm.axis1, q0)
+    R12_ta = R1_ta @ _rodrigues(arm.axis2, q1)
+    R123_ta = R12_ta @ _rodrigues(arm.axis3, q2)
 
-    # Link directions in LAR frame
-    # Link 1 is always horizontal; only q0 (yaw) moves it.
-    # q1 pitches link 2 at the elbow; q1+q2 pitches the bracket at the wrist.
-    d_link2   = c1  * u_rad + s1  * u_z    # link 2 direction
-    d_bracket = c12 * u_rad + s12 * u_z    # bracket direction
+    CR1   = Rz_s @ R1_ta
+    CR12  = Rz_s @ R12_ta
+    CR123 = Rz_s @ R123_ta
 
-    # CoM offsets along each link axis
-    c_L1  = arm.effective_link1_com()
-    c_L2  = arm.effective_link2_com()
-    c_br  = arm.effective_bracket_com()
+    # Hinge positions in LAR
+    p_h1 = pivot
+    p_h2 = p_h1 + CR1  @ arm.d_h1h2
+    p_h3 = p_h2 + CR12 @ arm.d_h2h3
 
-    m1 = arm.link1_mass
-    m2 = arm.link2_mass
-    m3 = arm.bracket_mass
-    M  = m1 + m2 + m3
+    # Joint rotation axes in LAR frame
+    omega1 = Rz_s @ arm.axis1             # axis 1 is fixed in servicer body
+    omega2 = CR1  @ arm.axis2             # axis 2 rotates with joint 1
+    omega3 = CR12 @ arm.axis3             # axis 3 rotates with joints 1&2
 
-    L1 = arm.link1_length
-    L2 = arm.link2_length
+    # CoM fractions along each link (distance from proximal joint / link length)
+    f1 = arm.effective_link1_com()   / arm.link1_length
+    f2 = arm.effective_link2_com()   / arm.link2_length
+    f3 = arm.effective_bracket_com() / arm.bracket_length
 
-    # CoM positions in LAR frame (link 1 always along u_rad)
-    p1 = pivot + c_L1 * u_rad                          # link 1 CoM: always horizontal
-    p2 = pivot + L1 * u_rad + c_L2 * d_link2           # link 2 CoM
-    p3 = pivot + L1 * u_rad + L2 * d_link2 + c_br * d_bracket  # bracket CoM
+    m1, m2, m3 = arm.link1_mass, arm.link2_mass, arm.bracket_mass
+    M = m1 + m2 + m3
 
-    cog = (m1 * p1 + m2 * p2 + m3 * p3) / M
+    # CoM positions
+    p_com1 = p_h1 + CR1   @ (f1 * arm.d_h1h2)
+    p_com2 = p_h2 + CR12  @ (f2 * arm.d_h2h3)
+    p_com3 = p_h3 + CR123 @ (f3 * arm.d_h3n)
 
-    # ---- Centroidal Jacobian ----
-    # Partial derivatives:
-    #   d(u_rad)/dq0    = u_perp   (horizontal rotation)
-    #   d(d_link2)/dq1  = −s1·u_rad + c1·u_z
-    #   d(d_bracket)/dq1 = d(d_bracket)/dq2 = −s12·u_rad + c12·u_z
-    #
-    # dp1/dq0 = c_L1·u_perp        (link 1 CoM sweeps with yaw)
-    # dp1/dq1 = 0                   (link 1 is always horizontal)
-    # dp1/dq2 = 0
-    #
-    # dp2/dq0 = (L1 + c_L2·c1)·u_perp
-    # dp2/dq1 = c_L2·d(d_link2)/dq1
-    # dp2/dq2 = 0
-    #
-    # dp3/dq0 = (L1 + L2·c1 + c_br·c12)·u_perp
-    # dp3/dq1 = L2·d(d_link2)/dq1 + c_br·d(d_bracket)/dq12
-    # dp3/dq2 = c_br·d(d_bracket)/dq12
+    cog = (m1 * p_com1 + m2 * p_com2 + m3 * p_com3) / M
 
-    dd_link2_dq1   = -s1  * u_rad + c1  * u_z
-    dd_bracket_dq12 = -s12 * u_rad + c12 * u_z    # same partial for dq1 and dq2
+    # Velocity Jacobian: J[:, i] = cross(omega_i, p_com - p_joint_i)
+    # Joint i affects all link CoMs that are downstream (after) joint i.
+    # col 0 (omega1 at p_h1): affects com1, com2, com3
+    J0 = (m1 * np.cross(omega1, p_com1 - p_h1)
+        + m2 * np.cross(omega1, p_com2 - p_h1)
+        + m3 * np.cross(omega1, p_com3 - p_h1)) / M
 
-    # Column 0 — d(cog)/dq0
-    scale_q0 = (m1 * c_L1
-                + m2 * (L1 + c_L2 * c1)
-                + m3 * (L1 + L2 * c1 + c_br * c12)) / M
-    J_col0 = scale_q0 * u_perp
+    # col 1 (omega2 at p_h2): affects com2, com3 only
+    J1 = (m2 * np.cross(omega2, p_com2 - p_h2)
+        + m3 * np.cross(omega2, p_com3 - p_h2)) / M
 
-    # Column 1 — d(cog)/dq1
-    J_col1 = ((m2 * c_L2 + m3 * L2) * dd_link2_dq1
-              + m3 * c_br * dd_bracket_dq12) / M
+    # col 2 (omega3 at p_h3): affects com3 only
+    J2 = m3 * np.cross(omega3, p_com3 - p_h3) / M
 
-    # Column 2 — d(cog)/dq2
-    J_col2 = m3 * c_br * dd_bracket_dq12 / M
-
-    J_cog = np.column_stack([J_col0, J_col1, J_col2])   # (3, 3)
+    J_cog = np.column_stack([J0, J1, J2])   # (3, 3)
 
     return cog, J_cog
 

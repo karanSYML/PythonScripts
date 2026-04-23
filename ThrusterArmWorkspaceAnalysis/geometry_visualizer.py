@@ -33,9 +33,9 @@ Components shown
 Interactive controls
 --------------------
   Sliders:
-    EE target X  [m]   [−3, 3]    initial: stowed FK X
-    EE target Y  [m]   [−3, 3]    initial: stowed FK Y
-    EE target Z  [m]   [−3, 3]    initial: stowed FK Z
+    Hinge 1  q0  [°]   [0, 270]   initial: stowed_joint_angles_deg[0]
+    Hinge 2  q1  [°]   [0, 235]   initial: stowed_joint_angles_deg[1]
+    Hinge 3  q2  [°]   [-36, 99]  initial: stowed_joint_angles_deg[2]
     Panel Track  α     [−90°, 90°]
     Client mass        [1500 kg, 6000 kg]
     Servicer mass      [700 / 750 / 800 kg]
@@ -164,8 +164,7 @@ def pivot_position(stack: StackConfig, arm: RoboticArmGeometry) -> np.ndarray:
         return np.array(override, dtype=float)
     yaw_deg = _STOWED_CFG.get("servicer_yaw_deg", SERVICER_YAW_DEG)
     origin = stack.servicer_origin_in_lar_frame()
-    offset_body = np.array([arm.pivot_offset_x, arm.pivot_offset_y, arm.pivot_offset_z])
-    return origin + _Rz(yaw_deg) @ offset_body
+    return origin + _Rz(yaw_deg) @ arm.arm_pivot_in_servicer_body()
 
 
 def panel_grid(stack: StackConfig, tracking_deg: float = 0.0,
@@ -574,7 +573,8 @@ def draw_legend(ax_leg):
 def update_dynamic_scene(ax, ax_info, scene: VisScene, state: dict):
     """Clear dynamic artists and rebuild for current state; refresh status panel.
 
-    EE target (ee_x, ee_y, ee_z) is resolved via IK → (q0, q1, q2).
+    Joint angles (q0_deg, q1_deg, q2_deg) are read directly from state and
+    converted to radians — no IK is performed.
     Both masses are injected into a copy of _STACK_GEOM via dataclasses.replace.
     """
     scene.clear_dynamic()
@@ -589,25 +589,24 @@ def update_dynamic_scene(ax, ax_info, scene: VisScene, state: dict):
                         client_mass=state["client_mass"],
                         servicer_mass=state["servicer_mass"])
 
-    pivot = pivot_position(stack, ARM)
+    yaw_deg = _STOWED_CFG.get("servicer_yaw_deg", SERVICER_YAW_DEG)
+    pivot   = pivot_position(stack, ARM)
 
-    # ── IK: resolve EE target → joint angles ─────────────────────────────
-    ee_target  = np.array([state["ee_x"], state["ee_y"], state["ee_z"]])
-    ik_result  = ARM.inverse_kinematics(pivot, ee_target, elbow_up=True)
-    ik_failed  = ik_result is None
-    if ik_failed:
-        q0, q1, q2 = 0.0, 0.0, 0.0
-    else:
-        q0, q1, q2 = ik_result
+    # ── Joint angles direct from sliders ──────────────────────────────────
+    q0 = np.radians(state["q0_deg"])
+    q1 = np.radians(state["q1_deg"])
+    q2 = np.radians(state["q2_deg"])
+    in_limits = ARM.within_joint_limits(q0, q1, q2)
 
     # ── Forward kinematics ────────────────────────────────────────────────
-    p_elbow, p_wrist, p_thruster = ARM.forward_kinematics(pivot, q0, q1, q2)
-    in_limits = ARM.within_joint_limits(q0, q1, q2)
+    p_elbow, p_wrist, p_thruster = ARM.forward_kinematics(
+        pivot, q0, q1, q2, servicer_yaw_deg=yaw_deg)
 
     # ── CoG (analytical, from arm_kinematics) ─────────────────────────────
     base_cog   = stack.stack_cog()
     stack_mass = stack.client_mass + stack.servicer_mass
-    arm_cog_3d, _ = arm_cog_and_jacobian(ARM, pivot, np.array([q0, q1, q2]))
+    arm_cog_3d, _ = arm_cog_and_jacobian(
+        ARM, pivot, np.array([q0, q1, q2]), servicer_yaw_deg=yaw_deg)
     arm_mass = ARM.arm_mass()
     cog = (stack_mass * base_cog + arm_mass * arm_cog_3d) / (stack_mass + arm_mass)
 
@@ -618,14 +617,11 @@ def update_dynamic_scene(ax, ax_info, scene: VisScene, state: dict):
     plume_dir  = -thrust_dir
 
     # ── Collision check (client bus + servicer box + panels + antennas) ─────
-    yaw_deg = _STOWED_CFG.get("servicer_yaw_deg", SERVICER_YAW_DEG)
     collision = arm_has_collision(pivot, p_elbow, p_wrist, p_thruster,
                                   stack, yaw_deg)
 
     # ── Arm colour ────────────────────────────────────────────────────────
-    if ik_failed:
-        arm_clr, arm_tag = "#E74C3C", "UNREACHABLE"
-    elif collision:
+    if collision:
         arm_clr, arm_tag = "#E74C3C", "COLLISION"
     elif not in_limits:
         arm_clr, arm_tag = "#E67E22", "LIMIT EXCEEDED"
@@ -704,13 +700,10 @@ def update_dynamic_scene(ax, ax_info, scene: VisScene, state: dict):
     row(f"Z = {pivot[2]:+.3f} m")
     blank()
 
-    section("IK → JOINT ANGLES")
-    if ik_failed:
-        row("IK: UNREACHABLE", color=bad_c, bold=True)
-    else:
-        row(f"q0 yaw    = {np.degrees(q0):+6.1f}°")
-        row(f"q1 elbow  = {np.degrees(q1):+6.1f}°")
-        row(f"q2 wrist  = {np.degrees(q2):+6.1f}°")
+    section("JOINT ANGLES")
+    row(f"q0 hinge1 = {np.degrees(q0):+6.1f}°")
+    row(f"q1 hinge2 = {np.degrees(q1):+6.1f}°")
+    row(f"q2 hinge3 = {np.degrees(q2):+6.1f}°")
     blank()
 
     section("FEASIBILITY")
@@ -736,9 +729,9 @@ def update_dynamic_scene(ax, ax_info, scene: VisScene, state: dict):
     spec_vec = _STOWED_CFG.get("stowed_ee_unit_vector")
     if spec_vec is not None:
         sv = np.array(spec_vec, dtype=float)
-        # Bracket direction (EE pointing direction) from FK
-        u_rad = np.array([np.cos(q0), np.sin(q0), 0.0])
-        d_bracket = np.cos(q1 + q2) * u_rad + np.sin(q1 + q2) * np.array([0., 0., 1.])
+        diff = p_thruster - p_wrist
+        norm_diff = np.linalg.norm(diff)
+        d_bracket = diff / norm_diff if norm_diff > 1e-9 else np.array([0., 0., 1.])
         cos_a = float(np.clip(np.dot(d_bracket, sv), -1.0, 1.0))
         ang_deg = np.degrees(np.arccos(cos_a))
         blank()
@@ -782,19 +775,16 @@ def main():
     # Load stowed config before anything else so pivot_position() can use it
     _STOWED_CFG = load_stowed_config()
 
-    # Compute stowed EE position (FK at stowed angles) for slider initialisation
-    _pivot_init = pivot_position(_STACK_GEOM, ARM)
+    # Initial joint angles from stowed config (defaults 0,0,0)
     _stowed_q   = _STOWED_CFG.get("stowed_joint_angles_deg", [0.0, 0.0, 0.0])
-    _sq         = [np.radians(a) for a in _stowed_q]
-    _, _, _p_ee_stowed = ARM.forward_kinematics(_pivot_init, *_sq)
-    init_x = float(np.clip(_p_ee_stowed[0], -3.0, 3.0))
-    init_y = float(np.clip(_p_ee_stowed[1], -3.0, 3.0))
-    init_z = float(np.clip(_p_ee_stowed[2], -3.0, 3.0))
+    init_q0 = float(_stowed_q[0]) if len(_stowed_q) > 0 else 0.0
+    init_q1 = float(_stowed_q[1]) if len(_stowed_q) > 1 else 0.0
+    init_q2 = float(_stowed_q[2]) if len(_stowed_q) > 2 else 0.0
 
     fig = plt.figure(figsize=(18, 9), facecolor="#F8F9FA")
     fig.suptitle(
         "Thruster Arm Geometry Verifier  \u00b7  Servicer below client (Z\u2212)  \u00b7  "
-        "EE target \u2192 IK \u2192 FK  \u00b7  Drag to rotate",
+        "Joint angles \u2192 FK  \u00b7  Drag to rotate",
         fontsize=11, fontweight="bold", y=0.998, color="#1A252F",
     )
 
@@ -811,9 +801,9 @@ def main():
 
     # ── Mutable shared state ───────────────────────────────────────────────
     state = {
-        "ee_x":          init_x,
-        "ee_y":          init_y,
-        "ee_z":          init_z,
+        "q0_deg":        init_q0,
+        "q1_deg":        init_q1,
+        "q2_deg":        init_q2,
         "tracking_deg":  0.0,
         "client_mass":   2500.0,
         "servicer_mass": 750.0,
@@ -837,30 +827,30 @@ def main():
         sl_x = 0.07
         sl_h = 0.022
 
-        ax_ex    = fig.add_axes([sl_x, sl_y[0], sl_w, sl_h])
-        ax_ey    = fig.add_axes([sl_x, sl_y[1], sl_w, sl_h])
-        ax_ez    = fig.add_axes([sl_x, sl_y[2], sl_w, sl_h])
+        ax_q0    = fig.add_axes([sl_x, sl_y[0], sl_w, sl_h])
+        ax_q1    = fig.add_axes([sl_x, sl_y[1], sl_w, sl_h])
+        ax_q2    = fig.add_axes([sl_x, sl_y[2], sl_w, sl_h])
         ax_track = fig.add_axes([sl_x, sl_y[3], sl_w, sl_h])
         ax_cmass = fig.add_axes([sl_x, sl_y[4], sl_w, sl_h])
         ax_smass = fig.add_axes([sl_x, sl_y[5], sl_w, sl_h])
 
-        sl_ex    = Slider(ax_ex,    "EE  X  [m]",           -3.0,  3.0,  valinit=init_x, valstep=0.05)
-        sl_ey    = Slider(ax_ey,    "EE  Y  [m]",           -3.0,  3.0,  valinit=init_y, valstep=0.05)
-        sl_ez    = Slider(ax_ez,    "EE  Z  [m]",           -3.0,  3.0,  valinit=init_z, valstep=0.05)
+        sl_q0    = Slider(ax_q0,    "Hinge 1  q0  [\u00b0]",    0.0, 270.0, valinit=init_q0, valstep=1.0)
+        sl_q1    = Slider(ax_q1,    "Hinge 2  q1  [\u00b0]",    0.0, 235.0, valinit=init_q1, valstep=1.0)
+        sl_q2    = Slider(ax_q2,    "Hinge 3  q2  [\u00b0]",  -36.0,  99.0, valinit=init_q2, valstep=1.0)
         sl_track = Slider(ax_track, "Panel Track  \u03b1 [\u00b0]", -90, 90, valinit=0,  valstep=5)
         sl_cmass = Slider(ax_cmass, "Client mass [kg]",     1500, 6000,  valinit=2500,   valstep=50)
         sl_smass = Slider(ax_smass, "Servicer mass [kg]",    700,  800,  valinit=750,    valstep=50)
 
         def _on_slider(_val):
-            state["ee_x"]          = sl_ex.val
-            state["ee_y"]          = sl_ey.val
-            state["ee_z"]          = sl_ez.val
+            state["q0_deg"]        = sl_q0.val
+            state["q1_deg"]        = sl_q1.val
+            state["q2_deg"]        = sl_q2.val
             state["tracking_deg"]  = sl_track.val
             state["client_mass"]   = sl_cmass.val
             state["servicer_mass"] = sl_smass.val
             _redraw()
 
-        for sl in (sl_ex, sl_ey, sl_ez, sl_track, sl_cmass, sl_smass):
+        for sl in (sl_q0, sl_q1, sl_q2, sl_track, sl_cmass, sl_smass):
             sl.on_changed(_on_slider)
 
         # ── Checkbox: flux overlay (shifted right, away from status panel) ──

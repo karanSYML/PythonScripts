@@ -5,6 +5,90 @@ Dates are in ISO 8601 format (YYYY-MM-DD).
 
 ---
 
+## [Unreleased] — 2026-04-23
+
+### Updated — Hardware geometry inputs (all six files)
+
+Replaced the placeholder simplified-arm geometry with confirmed hardware data.
+
+#### `feasibility_inputs.json` — confirmed values
+
+| Field | Old | New |
+|---|---|---|
+| `nozzle_exit_direction_ee` | `[0,0,1]` placeholder | `[0.1455, 0.9189, 0.3666]` — hardware-confirmed nozzle direction in link-3 body frame (= TA frame at q=0) |
+| `client_mass_kg` | 2500 | 2800 |
+| `client_cog_lar_m` | `[null,null,null]` | `[0.03, 0, 1.72]` — hardware-confirmed |
+| `tank_centroid_lar_m` | `[null,null,null]` | `[0.2, 0, −1.15]` — servicer CoG + body-frame offset (0.2, 0, 0.1) m at yaw=0 |
+
+#### `plume_impingement_pipeline.py` — `RoboticArmGeometry`
+
+Replaced the simplified yaw-pitch-pitch chain with the general serial-chain hardware geometry.
+
+**New fields**:
+
+| Field | Value | Description |
+|---|---|---|
+| `ta_origin_{x,y,z}` | (−0.12891, 0.31619, 0.356) m | TA-frame origin in servicer body |
+| `h1_ta_{x,y,z}` | (0, 0, 0.25175) m | Hinge 1 in TA frame |
+| `d_h1h2` | (−0.12, −1.10288, −0.1) m | Link vector H1→H2 in body frame |
+| `d_h2h3` | (−0.1, 1.51918, 0.02595) m | Link vector H2→H3 in body frame |
+| `d_h3n` | (0.47977, −0.06677, 0.006) m | Link vector H3→Nozzle in body frame |
+| `axis1` | (0, 0, −1) | Hinge 1 rotation axis in TA frame |
+| `axis2` | (1, 0, 0) | Hinge 2 rotation axis in link-1 body frame |
+| `axis3` | (0, −0.3746, 0.9272) | Hinge 3 rotation axis in link-2 body frame |
+| `n_hat_body` | (0.1455, 0.9189, 0.3666) | Nozzle exit direction in link-3 body frame |
+
+Updated link lengths derived from `|d_hXhY|`: L1=1.1139 m, L2=1.5227 m, L3=0.4844 m.
+
+**Updated `pivot_offset_*`**: now full offset from servicer origin (no `servicer_bus_z/2` dependency): (−0.12891, 0.31619, 0.60775).
+
+**New method `arm_pivot_in_servicer_body()`**: returns Hinge-1 position in servicer body frame = TA-origin + H1-in-TA = (−0.12891, 0.31619, 0.60775) m.
+
+**New `_rodrigues(axis, angle)` module-level helper**: 3×3 rotation matrix via Rodrigues formula.
+
+**Updated `forward_kinematics(pivot, q0, q1, q2, servicer_yaw_deg=0)`**: uses `_rodrigues` chain; returns (p_H2, p_H3, p_nozzle) in LAR.
+
+**Updated `GeometryEngine._pivot_position()`**: now uses `arm.arm_pivot_in_servicer_body()` (removes `servicer_bus_z/2` addition).
+
+#### `arm_kinematics.py`
+
+**Updated `arm_fk_transforms(arm, pivot, q, servicer_yaw_deg=0)`**: general serial-chain via Rodrigues; 4×4 homogeneous transforms identical in interface but correct for new geometry.
+
+**Updated `arm_cog_and_jacobian(arm, pivot, q, servicer_yaw_deg=0)`**: cross-product Jacobian (`J[:, i] = ωᵢ × (p_com − pᵢ) / M`) replaces old yaw-pitch-pitch closed-form partials. Correct for arbitrary rotation axes.
+
+#### `feasibility_cells.py`
+
+**New `_vrodrigues(axis, angles)` helper**: vectorized Rodrigues over a grid of angles, returns `(*angles.shape, 3, 3)`.
+
+**Updated `compute_static_cell_quantities(..., servicer_yaw_deg=0.0)`**: replaced closed-form EE frame computation with batched Rodrigues chain:
+```
+R1_ta, R12_ta, R123_ta  →  CR1, CR12, CR123  (Rz_serv prepended)
+p_h2     = pivot + einsum(CR1,   d_h1h2)
+p_h3     = p_h2  + einsum(CR12,  d_h2h3)
+p_nozzle = p_h3  + einsum(CR123, d_h3n)
+t_hat    = −einsum(CR123, n_hat_body)
+```
+
+#### `feasibility_map.py`
+
+**Updated `compute_pivot()`**: calls `arm.arm_pivot_in_servicer_body()` directly; removes `servicer_bus_z/2` hack.
+
+**Updated `build_feasibility_maps()`**: passes `servicer_yaw_deg` to `compute_static_cell_quantities`.
+
+#### `geometry_visualizer.py`
+
+**Updated `pivot_position()`**: calls `arm.arm_pivot_in_servicer_body()` (consistent with the other pivot formulas).
+
+#### `workspace_erosion_viz.py`
+
+**Updated `compute_static_cell_quantities` call**: passes `servicer_yaw_deg=SERVICER_YAW_DEG`.
+
+#### Verification
+
+Stowed-config FK error vs. hardware-spec positions: < 1e-15 m (machine precision) for all four joints.
+
+---
+
 ## [Unreleased] — 2026-04-21
 
 ### Added — `feasibility_inputs.json`

@@ -6,19 +6,19 @@
   "isp_s": 1485.0,
 
   "_section_nozzle": [
-    "Fixed nozzle exit direction in end-effector (EE) frame.",
-    "The EE frame Z-axis is defined along the bracket axis (wrist → thruster tip).",
-    "n̂^E = [0,0,1] means plume exits in EE +Z (along bracket outward); thrust on spacecraft is in EE -Z.",
-    "PLACEHOLDER — confirm with hardware drawings before running feasibility maps."
+    "Fixed nozzle exit direction in the link-3 body frame (= TA reference frame at stowed config q=0).",
+    "Hardware-confirmed value: (0.1455, 0.9189, 0.3666) — direction the plume exits.",
+    "Thrust on spacecraft is in the opposite direction: (-0.1455, -0.9189, -0.3666).",
+    "In compute_static_cell_quantities() this vector is rotated by the full cumulative FK chain."
   ],
-  "nozzle_exit_direction_ee": [0.0, 0.0, 1.0],
+  "nozzle_exit_direction_ee": [0.1455, 0.9189, 0.3666],
 
   "_section_masses": [
     "Servicer mass breakdown. servicer_dry_mass_kg + propellant_mass_0_kg = initial total servicer mass.",
     "The StackConfig.servicer_mass (735 kg default) represents the current total; split it here.",
     "REQUIRED — set both fields before running CompositeMassModel."
   ],
-  "client_mass_kg": 2500.0,
+  "client_mass_kg": 2800.0,
   "servicer_dry_mass_kg": 600.0,
   "propellant_mass_0_kg": 144.0,
 
@@ -31,9 +31,15 @@
     "null → auto-computed from StackConfig geometry (geometric bus centre as proxy).",
     "Fill in once confirmed with structural model."
   ],
-  "client_cog_lar_m": [null, null, null],
+  "_note_cog": [
+    "client_cog_lar_m: hardware-confirmed client CoG in LAR frame.",
+    "tank_centroid_lar_m: servicer CoG (0,0,-1.25 at defaults) + body-frame offset (0.2,0,0.1).",
+    "  Computed at servicer_yaw=0; for non-zero yaw apply Rz(yaw) to the body-frame offset.",
+    "servicer_dry_cog_lar_m: null = geometric centre of servicer bus (conservative proxy)."
+  ],
+  "client_cog_lar_m": [0.03, 0.0, 1.72],
   "servicer_dry_cog_lar_m": [null, null, null],
-  "tank_centroid_lar_m": [null, null, null],
+  "tank_centroid_lar_m": [0.2, 0.0, -1.15],
 
   "_section_constraints": "Feasibility filter thresholds — adjust based on mission requirements.",
   "eps_CoG_m": 0.05,
