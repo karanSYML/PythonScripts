@@ -55,9 +55,9 @@ from feasibility_map import compute_pivot
 
 ARM   = RoboticArmGeometry()
 STACK = StackConfig(
-    servicer_mass=750.0,
+    servicer_mass=744.0,
     servicer_bus_x=0.9, servicer_bus_y=1.5, servicer_bus_z=0.8,
-    client_mass=2500.0,
+    client_mass=2800.0,
     client_bus_x=2.3, client_bus_y=3.0, client_bus_z=5.0,
     panel_span_one_side=16.0, panel_width=2.5,
     lar_offset_z=0.05,
@@ -489,7 +489,7 @@ def main():
     print("=" * 60)
 
     cfg      = _load_cfg()
-    n_hat_ee = np.array(cfg.get("nozzle_exit_direction_ee", [0., 0., 1.]))
+    n_hat_ee = np.array(cfg.get("nozzle_exit_direction_ee", ARM.n_hat_body))
 
     pivot = compute_pivot(ARM, STACK, SERVICER_YAW_DEG)
     cog   = STACK.stack_cog()
@@ -519,12 +519,9 @@ def main():
     q1_valid = q1g[F_kin]
     q2_valid = q2g[F_kin]
 
-    # ── 4. Thrust direction: nozzle → CoG  ────────────────────────────────
-    to_cog   = cog[np.newaxis, :] - p_valid
-    dist_cog = np.linalg.norm(to_cog, axis=-1, keepdims=True)
-    dist_cog = np.where(dist_cog < 1e-6, 1e-6, dist_cog)
-    thrust_d = to_cog / dist_cog       # (N_valid, 3)
-    plume_d  = -thrust_d               # plume exits opposite to thrust
+    # ── 4. Plume direction from FK nozzle axis (CR3 @ n_hat_body per cell) ───
+    # cq['t_hat'] = -(CR123 @ n_hat_body), already computed for every grid cell
+    plume_d = -cq['t_hat'][F_kin]     # (N_valid, 3)  plasma exits along +n_hat
 
     # ── 5. Solar panel points + erosion proxy ─────────────────────────────
     print("Computing erosion proxy (vectorized)...")
@@ -556,7 +553,7 @@ def main():
     fig = plt.figure(figsize=(18, 9), facecolor="#F8F9FA")
     fig.suptitle(
         "Thruster Arm Workspace  —  Plume Erosion Proxy per Reachable EE Position\n"
-        f"Thrust direction: nozzle → CoG  |  "
+        f"Plume direction: FK nozzle axis (CR3 @ n̂_body)  |  "
         f"Erosion proxy: Σ cos^n(θ)/r² over {len(panel_pts)} panel points  |  "
         f"{N_valid:,} collision-free poses",
         fontsize=10, fontweight="bold", y=0.995, color="#1A252F",

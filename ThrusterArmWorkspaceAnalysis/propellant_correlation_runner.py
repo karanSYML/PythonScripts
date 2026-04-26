@@ -5,9 +5,9 @@ Propellant-Erosion Correlation Runner
 Runs the plume impingement pipeline sweep first, then feeds each candidate
 case into TimeResolvedErosion for a full time-resolved analysis.
 
-Servicer dry mass : 530 kg
-Xenon propellant  : 140 kg
-Total servicer    : 670 kg
+Servicer dry mass : 600 kg  (hardware-confirmed)
+Xenon propellant  : 144 kg  (hardware-confirmed)
+Total servicer    : 744 kg
 """
 
 import os
@@ -15,7 +15,7 @@ import csv
 import numpy as np
 
 from plume_impingement_pipeline import (
-    ThrusterParams, MaterialParams, StackConfig, OperationalParams,
+    ThrusterParams, MaterialParams, RoboticArmGeometry, StackConfig, OperationalParams,
     PlumePipeline, CaseMatrixGenerator,
 )
 from propellant_erosion_correlation import (
@@ -27,15 +27,15 @@ from propellant_erosion_correlation import (
 # Configuration
 # ---------------------------------------------------------------------------
 
-SERVICER_DRY_MASS_KG  = 530.0
-XENON_LOADED_KG       = 140.0
-SERVICER_TOTAL_MASS   = SERVICER_DRY_MASS_KG + XENON_LOADED_KG   # 670 kg
+SERVICER_DRY_MASS_KG  = 600.0   # hardware-confirmed
+XENON_LOADED_KG       = 144.0   # hardware-confirmed
+SERVICER_TOTAL_MASS   = SERVICER_DRY_MASS_KG + XENON_LOADED_KG   # 744 kg
 
 # Hardware-fixed arm geometry (supplier constraint)
-_L1          = 1.12
-_L2          = 1.40
-ARM_REACH_M  = _L1 + _L2            # 2.52 m  (L1+L2; bracket 0.35 m is separate)
-LINK_RATIO   = _L1 / ARM_REACH_M    # ≈ 0.4444
+_L1          = 1.1139
+_L2          = 1.5227
+ARM_REACH_M  = _L1 + _L2             # 2.6366 m  (L1+L2; bracket 0.4844 m separate)
+LINK_RATIO   = _L1 / ARM_REACH_M     # ≈ 0.4222
 
 OUTPUT_DIR = "./propellant_correlation_results"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -94,7 +94,7 @@ gen.set_param_range("shoulder_yaw_deg",
 fixed_params = {
     "arm_reach_m":         ARM_REACH_M,   # hardware-fixed: L1+L2 = 2.52 m
     "link_ratio":          LINK_RATIO,    # hardware-fixed: L1/(L1+L2) ≈ 0.444
-    "client_mass":         3500.0,
+    "client_mass":         2800.0,
     "servicer_mass":       SERVICER_TOTAL_MASS,
     "panel_span_one_side": 16.0,
     "firing_duration_s":   25000.0,
@@ -144,7 +144,10 @@ print("=" * 70)
 time_resolved_results = []
 
 for i, case in enumerate(candidates):
-    arm, stack, ops = CaseMatrixGenerator.case_to_objects(case)
+    # Build arm from hardware-confirmed geometry; only shoulder yaw varies per case
+    arm = RoboticArmGeometry(shoulder_yaw_deg=case['shoulder_yaw_deg'])
+    # stack and ops still come from the case dict
+    _, stack, ops = CaseMatrixGenerator.case_to_objects(case)
 
     # Ensure servicer mass is consistent: dry + Xe
     stack.servicer_mass = SERVICER_TOTAL_MASS

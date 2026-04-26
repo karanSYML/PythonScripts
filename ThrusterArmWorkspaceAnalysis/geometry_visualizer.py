@@ -92,9 +92,9 @@ def load_stowed_config(path: str = "stowed_config.json") -> dict:
 # ─── Default geometry (fixed for static scene; masses come from state) ─────────
 
 _STACK_GEOM = StackConfig(
-    servicer_mass=750.0,
+    servicer_mass=744.0,
     servicer_bus_x=0.9, servicer_bus_y=1.5, servicer_bus_z=0.8,
-    client_mass=2500.0,
+    client_mass=2800.0,
     client_bus_x=2.3,  client_bus_y=3.0,  client_bus_z=5.0,
     panel_span_one_side=16.0, panel_width=2.5,
     lar_offset_z=0.05,
@@ -610,11 +610,10 @@ def update_dynamic_scene(ax, ax_info, scene: VisScene, state: dict):
     arm_mass = ARM.arm_mass()
     cog = (stack_mass * base_cog + arm_mass * arm_cog_3d) / (stack_mass + arm_mass)
 
-    # ── Thrust / plume direction ──────────────────────────────────────────
-    to_cog = cog - p_thruster
-    dist_to_cog = np.linalg.norm(to_cog)
-    thrust_dir = to_cog / dist_to_cog if dist_to_cog > 1e-6 else np.array([0., 0., 1.])
-    plume_dir  = -thrust_dir
+    # ── Plume / thrust direction from FK nozzle axis (CR3 @ n_hat_body) ─────
+    plume_dir  = ARM.nozzle_direction_lar(q0, q1, q2, servicer_yaw_deg=yaw_deg)
+    thrust_dir = -plume_dir
+    dist_to_cog = np.linalg.norm(cog - p_thruster)
 
     # ── Collision check (client bus + servicer box + panels + antennas) ─────
     collision = arm_has_collision(pivot, p_elbow, p_wrist, p_thruster,
@@ -805,8 +804,8 @@ def main():
         "q1_deg":        init_q1,
         "q2_deg":        init_q2,
         "tracking_deg":  0.0,
-        "client_mass":   2500.0,
-        "servicer_mass": 750.0,
+        "client_mass":   2800.0,
+        "servicer_mass": 744.0,
         "show_flux":     False,
     }
 
@@ -838,8 +837,8 @@ def main():
         sl_q1    = Slider(ax_q1,    "Hinge 2  q1  [\u00b0]",    0.0, 235.0, valinit=init_q1, valstep=1.0)
         sl_q2    = Slider(ax_q2,    "Hinge 3  q2  [\u00b0]",  -36.0,  99.0, valinit=init_q2, valstep=1.0)
         sl_track = Slider(ax_track, "Panel Track  \u03b1 [\u00b0]", -90, 90, valinit=0,  valstep=5)
-        sl_cmass = Slider(ax_cmass, "Client mass [kg]",     1500, 6000,  valinit=2500,   valstep=50)
-        sl_smass = Slider(ax_smass, "Servicer mass [kg]",    700,  800,  valinit=750,    valstep=50)
+        sl_cmass = Slider(ax_cmass, "Client mass [kg]",     1500, 6000,  valinit=2800,   valstep=50)
+        sl_smass = Slider(ax_smass, "Servicer mass [kg]",    700,  800,  valinit=744,    valstep=50)
 
         def _on_slider(_val):
             state["q0_deg"]        = sl_q0.val

@@ -224,7 +224,7 @@ class CompositeMassModel:
         isp_s        = float(cfg.get("isp_s", 1485.0))
         burn_cadence = float(cfg.get("burn_cadence_hr_per_day", 10.0))
         m_C          = float(cfg.get("client_mass_kg",
-                                      stack.client_mass if stack is not None else 2500.0))
+                                      stack.client_mass if stack is not None else 2800.0))
 
         m_S_dry  = cfg.get("servicer_dry_mass_kg")
         m_prop_0 = cfg.get("propellant_mass_0_kg")

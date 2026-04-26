@@ -30,7 +30,7 @@ import warnings
 
 # Import the base pipeline
 from plume_impingement_pipeline import (
-    ThrusterParams, ArmGeometry, RoboticArmGeometry, StackConfig, OperationalParams,
+    ThrusterParams, RoboticArmGeometry, StackConfig, OperationalParams,
     MaterialParams, GeometryEngine, ErosionEstimator
 )
 
@@ -323,7 +323,7 @@ class TimeResolvedErosion:
     """Integrates erosion manoeuvre-by-manoeuvre with evolving COG."""
 
     def __init__(self, thruster: ThrusterParams, material: MaterialParams,
-                 arm: ArmGeometry, stack: StackConfig,
+                 arm: RoboticArmGeometry, stack: StackConfig,
                  prop_config: PropellantConfig, sk_budget: StationkeepingBudget):
         self.thruster = thruster
         self.material = material
@@ -577,7 +577,7 @@ class PropellantErosionSweep:
 
     def sweep_propellant_vs_mission(
         self,
-        arm: ArmGeometry,
+        arm: RoboticArmGeometry,
         stack: StackConfig,
         sk_budget: StationkeepingBudget,
         propellant_range_kg: np.ndarray = np.arange(40, 200, 20),
@@ -1100,7 +1100,7 @@ def run_demo():
         panel_span_one_side=12.0,
     )
 
-    arm = ArmGeometry(arm_length=2.5, azimuth_deg=0.0, elevation_deg=0.0)
+    arm = RoboticArmGeometry(shoulder_yaw_deg=0.0)
 
     prop_config = PropellantConfig(propellant_loaded_kg=120.0)
 

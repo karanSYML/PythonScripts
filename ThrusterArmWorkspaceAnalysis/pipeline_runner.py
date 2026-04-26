@@ -3,10 +3,10 @@
 pipeline_runner.py — Operational parametric sweep for the thruster arm assembly.
 
 Arm geometry is hardware-fixed (supplier constraint):
-  Link 1  : 1.12 m   (shoulder → elbow)
-  Link 2  : 1.40 m   (elbow → wrist)
-  Bracket : 0.35 m   (wrist → thruster exit)
-  Reach   : 2.87 m   total
+  Link 1  : 1.1139 m  (shoulder → elbow)
+  Link 2  : 1.5227 m  (elbow → wrist)
+  Bracket : 0.4844 m  (wrist → thruster exit)
+  Reach   : 3.1210 m  total  (elbow reach L1+L2 = 2.6366 m)
 
 The only operational degree of freedom swept here is shoulder_yaw_deg (J1).
 J2 and J3 are resolved by IK to place the thruster horizontally at the
@@ -39,10 +39,10 @@ from pareto_scoring import ParetoScorer
 # ---------------------------------------------------------------------------
 # Hardware-fixed arm geometry (supplier constraint)
 # ---------------------------------------------------------------------------
-L1           = 1.12   # m
-L2           = 1.40   # m
-ARM_REACH_M  = L1 + L2          # 2.52 m  (L1+L2; bracket is separate)
-LINK_RATIO   = L1 / ARM_REACH_M # 0.4444…
+L1           = 1.1139   # m  (hardware-confirmed)
+L2           = 1.5227   # m  (hardware-confirmed)
+ARM_REACH_M  = L1 + L2             # 2.6366 m  (elbow reach, L1+L2; bracket 0.4844 m separate)
+LINK_RATIO   = L1 / ARM_REACH_M    # 0.4222…
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -73,7 +73,7 @@ gen.set_param_range("shoulder_yaw_deg",
 
 # Secondary sensitivity sweeps
 gen.set_param_range("client_mass",
-                    np.array([1500.0, 2000.0, 2500.0, 3000.0]))
+                    np.array([2000.0, 2500.0, 2800.0, 3500.0]))
 gen.set_param_range("panel_tracking_deg",
                     np.array([-15.0, 0.0, 15.0]))
 
@@ -81,7 +81,7 @@ gen.set_param_range("panel_tracking_deg",
 fixed = {
     "arm_reach_m":         ARM_REACH_M,
     "link_ratio":          LINK_RATIO,
-    "servicer_mass":       670.0,       # 530 kg dry + 140 kg Xe
+    "servicer_mass":       744.0,       # 600 kg dry + 144 kg Xe at BOL
     "panel_span_one_side": 16.0,
     "firing_duration_s":   25000.0,
     "mission_duration_yr": 5.0,

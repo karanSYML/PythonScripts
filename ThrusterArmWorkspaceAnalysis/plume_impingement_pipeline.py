@@ -283,6 +283,23 @@ class RoboticArmGeometry:
         p_nozzle = p_h3  + CR3 @ self.d_h3n
         return p_h2, p_h3, p_nozzle
 
+    def nozzle_direction_lar(self, q0: float, q1: float, q2: float,
+                             servicer_yaw_deg: float = 0.0) -> np.ndarray:
+        """Nozzle exit direction (unit vector) in LAR frame: (Rz_s @ R3) @ n_hat_body.
+
+        Plasma exits along this vector; spacecraft thrust reaction is along its negative.
+        This is the physically correct plume direction for erosion calculations,
+        independent of where the CoG is located.
+        """
+        c_s = np.cos(np.radians(servicer_yaw_deg))
+        s_s = np.sin(np.radians(servicer_yaw_deg))
+        Rz_s = np.array([[c_s, -s_s, 0.], [s_s, c_s, 0.], [0., 0., 1.]])
+        R1 = _rodrigues(self.axis1, q0)
+        R2 = R1 @ _rodrigues(self.axis2, q1)
+        R3 = R2 @ _rodrigues(self.axis3, q2)
+        n = (Rz_s @ R3) @ self.n_hat_body
+        return n / np.linalg.norm(n)
+
     def inverse_kinematics(self, pivot: np.ndarray, target: np.ndarray,
                            elbow_up: bool = True
                            ) -> Optional[Tuple[float, float, float]]:
@@ -342,13 +359,13 @@ class RoboticArmGeometry:
 class StackConfig:
     """Combined servicer + client satellite stack."""
     # Servicer
-    servicer_mass: float = 735.0        # kg
+    servicer_mass: float = 744.0        # kg  (600 kg dry + 144 kg Xe at BOL)
     servicer_bus_x: float = 0.90        # m  (along velocity)
     servicer_bus_y: float = 1.52        # m  (along orbit-normal / N-S)
     servicer_bus_z: float = 0.80         # m  (along nadir)
 
     # Client (telecom satellite)
-    client_mass: float = 2500.0         # kg
+    client_mass: float = 2800.0         # kg  (hardware-confirmed)
     client_bus_x: float = 2.5           # m
     client_bus_y: float = 3.0           # m
     client_bus_z: float = 5.0           # m
@@ -885,6 +902,20 @@ class GeometryEngine:
         plume_dir = -thrust_dir
         return plume_dir
 
+    def plume_direction_fk(self) -> np.ndarray:
+        """Physical plume direction from FK nozzle axis: (Rz_s @ R3) @ n_hat_body.
+
+        Uses IK joint angles stored during the last thruster_position() call.
+        Falls back to CoG-aimed direction when IK joint angles are unavailable
+        (e.g. IK failed or arm is ArmGeometry). Use this for erosion calculations;
+        use thrust_direction() only for manoeuvre-efficiency analysis.
+        """
+        if (isinstance(self.arm, RoboticArmGeometry)
+                and getattr(self, '_ik_joint_angles', None) is not None):
+            q0, q1, q2 = self._ik_joint_angles
+            return self.arm.nozzle_direction_lar(q0, q1, q2, servicer_yaw_deg=0.0)
+        return self.thrust_direction()
+
     def panel_grid_points(self, n_spanwise: int = 50, n_chordwise: int = 10,
                           sun_tracking_angle_deg: float = 0.0) -> np.ndarray:
         """Generate grid points on both solar panels (client).
@@ -939,7 +970,7 @@ class GeometryEngine:
            - incidence angle on panel surface
         """
         t_pos = self.thruster_position()
-        plume_dir = self.thrust_direction()
+        plume_dir = self.plume_direction_fk()
         panel_pts = self.panel_grid_points(n_spanwise, n_chordwise,
                                            sun_tracking_angle_deg)
         panel_norm = self.panel_normal(sun_tracking_angle_deg)
@@ -983,7 +1014,7 @@ class GeometryEngine:
           diameter_m        – dish diameter
         """
         t_pos    = self.thruster_position()
-        plume_dir = self.thrust_direction()
+        plume_dir = self.plume_direction_fk()
         dish_normal = np.array([0.0, 0.0, 1.0])  # nadir-facing aperture
 
         centers = self.stack.antenna_centers_in_lar_frame()

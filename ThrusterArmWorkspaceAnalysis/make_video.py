@@ -44,7 +44,8 @@ from plume_impingement_pipeline import (
     PlumePipeline, CaseMatrixGenerator,
 )
 from geometry_visualizer import (
-    redraw, STACK, THRUSTER,
+    update_dynamic_scene, VisScene, init_static_scene,
+    STACK, THRUSTER,
     pivot_position, panel_grid, relative_flux,
     draw_box, draw_panel_faces, draw_flux_overlay,
     draw_plume_cone, set_equal_aspect,
@@ -56,8 +57,7 @@ from pareto_scoring import ParetoScorer, run_pareto_analysis
 DEFAULT_OUTPUT = "assembly_animation.mp4"
 DEFAULT_FPS    = 24
 DEFAULT_DPI    = 120
-REACH_M        = 3.5       # fixed reach for the sweep scene
-LINK_RATIO     = 0.5
+# Arm geometry is hardware-fixed; reach/ratio are not sweep parameters here.
 
 
 # ==============================================================================
@@ -77,16 +77,16 @@ def build_sweep_frames(n_frames: int = 360) -> list:
     frames = []
     for i in range(n_frames):
         frames.append({
-            "yaw_deg":      yaw_vals[i],
-            "elev_deg":     0.0,
-            "reach_m":      REACH_M,
-            "link_ratio":   LINK_RATIO,
+            "q0_deg":       yaw_vals[i],   # shoulder yaw (Hinge 1)
+            "q1_deg":       0.0,
+            "q2_deg":       0.0,
             "tracking_deg": 0.0,
-            "elbow_up":     True,
+            "client_mass":  2800.0,
+            "servicer_mass": 744.0,
             "show_flux":    False,
             "_cam_az":      cam_az[i],
             "_cam_el":      cam_el[i],
-            "_scene_label": f"Scene 1 — Arm Sweep   yaw = {yaw_vals[i]:.0f}°",
+            "_scene_label": f"Scene 1 — Arm Sweep   q0 = {yaw_vals[i]:.0f}°",
         })
     return frames
 
@@ -107,8 +107,8 @@ def build_pareto_cases() -> list:
             "arm_reach_m":         reach,
             "shoulder_yaw_deg":    yaw,
             "link_ratio":          ratio,
-            "client_mass":         2000.0,
-            "servicer_mass":       670.0,
+            "client_mass":         2800.0,
+            "servicer_mass":       744.0,
             "panel_span_one_side": 16.0,
             "firing_duration_s":   25000.0,
             "mission_duration_yr": 5.0,
@@ -139,27 +139,24 @@ def build_pareto_frames(front: list, dwell_frames: int) -> list:
 
     for k, cfg in enumerate(front):
         yaw   = cfg.get("shoulder_yaw_deg", 45.0)
-        reach = cfg.get("arm_reach_m",      REACH_M)
-        ratio = cfg.get("link_ratio",        LINK_RATIO)
 
         cam_az_start = -60.0 - k * (180.0 / max(n_configs - 1, 1))
         cam_az_vals  = np.linspace(cam_az_start, cam_az_start - 30.0, dwell_frames)
 
         for i in range(dwell_frames):
             frames.append({
-                "yaw_deg":      yaw,
-                "elev_deg":     0.0,
-                "reach_m":      reach,
-                "link_ratio":   ratio,
+                "q0_deg":       yaw,   # shoulder yaw (Hinge 1)
+                "q1_deg":       0.0,
+                "q2_deg":       0.0,
                 "tracking_deg": 0.0,
-                "elbow_up":     True,
+                "client_mass":  2800.0,
+                "servicer_mass": 744.0,
                 "show_flux":    False,
                 "_cam_az":      cam_az_vals[i],
                 "_cam_el":      20.0,
                 "_scene_label": (
                     f"Scene 2 — Pareto Config {k+1}/{n_configs}\n"
-                    f"yaw={yaw:.0f}°  reach={reach:.1f}m  ratio={ratio:.2f}\n"
-                    f"score={cfg.get('pareto_score', 0):.3f}  "
+                    f"q0={yaw:.0f}°  score={cfg.get('pareto_score', 0):.3f}  "
                     f"NSSK dev={cfg.get('nssk_deviation_deg', 0):.1f}°  "
                     f"status={cfg.get('status','?')}"
                 ),
@@ -178,19 +175,10 @@ def build_pareto_frames(front: list, dwell_frames: int) -> list:
 # FRAME RENDERER
 # ==============================================================================
 
-def render_frame(fig, ax3d, ax_info, ax_title, frame_state: dict):
+def render_frame(fig, ax3d, ax_info, ax_title, scene, frame_state: dict):
     """Render a single animation frame into ax3d + ax_info + ax_title."""
-    # ── 3D scene ──────────────────────────────────────────────────────────────
-    redraw(
-        ax3d, ax_info, STACK,
-        yaw_deg      = frame_state["yaw_deg"],
-        elev_deg     = frame_state["elev_deg"],
-        reach_m      = frame_state["reach_m"],
-        link_ratio   = frame_state["link_ratio"],
-        tracking_deg = frame_state["tracking_deg"],
-        elbow_up     = frame_state["elbow_up"],
-        show_flux    = frame_state["show_flux"],
-    )
+    # ── 3D scene ────────────────────────────────────────────────────────────────────────────
+    update_dynamic_scene(ax3d, ax_info, scene, frame_state)
 
     # ── Camera ────────────────────────────────────────────────────────────────
     ax3d.view_init(elev=frame_state["_cam_el"],
@@ -301,6 +289,10 @@ def main():
     prog_bar, = ax_prog.fill([0, 0, 0, 0], [0, 0, 1, 1],
                               color="#2471A3", alpha=0.7)
 
+    # ── Static scene (drawn once) ─────────────────────────────────────────
+    scene = VisScene()
+    init_static_scene(ax3d, STACK, scene)
+
     # ── Animation function ────────────────────────────────────────────────────
     def _animate(frame_idx: int):
         if frame_idx % max(1, total_frames // 20) == 0:
@@ -309,7 +301,7 @@ def main():
                   end="\r", flush=True)
 
         state = all_frames[frame_idx]
-        render_frame(fig, ax3d, ax_info, ax_title, state)
+        render_frame(fig, ax3d, ax_info, ax_title, scene, state)
 
         # Update progress bar
         prog_bar.set_xy([[0, 0], [frame_idx + 1, 0],

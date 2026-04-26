@@ -364,9 +364,22 @@ python propellant_correlation_runner.py
 Or run on a specific arm configuration inline:
 
 ```python
+from plume_impingement_pipeline import (
+    ThrusterParams, MaterialParams, RoboticArmGeometry, StackConfig
+)
 from propellant_erosion_correlation import (
     PropellantConfig, StationkeepingBudget, TimeResolvedErosion, plot_time_resolved_erosion
 )
+
+thruster = ThrusterParams(name="SPT-100-like", thrust_N=0.054, isp=1485.0)
+material = MaterialParams(name="Silver_interconnect", thickness_um=15.0)
+
+# RoboticArmGeometry — hardware-confirmed geometry; shoulder_yaw_deg sets the burn azimuth
+arm   = RoboticArmGeometry(shoulder_yaw_deg=45.0)
+stack = StackConfig(servicer_mass=744.0, client_mass=2800.0,
+                    servicer_bus_x=0.9, servicer_bus_y=1.5, servicer_bus_z=0.8,
+                    client_bus_x=2.3, client_bus_y=3.0, client_bus_z=5.0,
+                    panel_span_one_side=16.0, panel_width=2.5, lar_offset_z=0.05)
 
 prop_config = PropellantConfig(tank_capacity_kg=160.0,
                                 propellant_loaded_kg=144.0,
@@ -421,6 +434,13 @@ robot.show()
 
 ## Step 9 — Render animation
 
+> **Known issue — update required before running.**
+> `make_video.py` imports `redraw` from `geometry_visualizer`, but that function was
+> refactored to `update_dynamic_scene()` in the joint-angle slider update (see CHANGELOG.md).
+> The script will fail on import until it is updated to call `update_dynamic_scene()` with
+> a `state` dict containing `q0_deg / q1_deg / q2_deg` instead of `yaw_deg / reach_m / link_ratio`.
+> The CLI flags and scene structure described below are correct.
+
 Render a video showing the arm sweeping through its full range and stepping through the Pareto-optimal configurations.
 
 ```bash
@@ -437,7 +457,9 @@ python make_video.py --scene pareto
 python make_video.py --fps 24 --dpi 150 --output high_quality.mp4
 ```
 
-The Pareto walk scene requires that `pareto_output/` already exists (run `pipeline_runner.py` first).
+**Scene 1 — Arm Sweep (~10 s at 24 fps):** sweeps Hinge-1 (q0) from 0° to 270°, camera orbits the assembly.
+
+**Scene 2 — Pareto Walk:** steps through the Pareto-optimal configurations from a compact internal sweep, dwelling ~1.5 s per configuration with score annotations overlaid.
 
 ---
 
