@@ -5,6 +5,88 @@ Dates are in ISO 8601 format (YYYY-MM-DD).
 
 ---
 
+## [2026-05-01] — GEO space environment: substorm charging + thermal-cycling lifetime
+
+### Added — `plume_impingement_pipeline.py`: GEO environment wiring
+
+Imported `GEOEnvironment` and `ThermalCycling` from `sputter_erosion`.
+
+**`_sheath_from_geo_env(geo_env, string_voltage=100.0, Te_local=2.0) → SheathModel`**
+Helper that translates a `GEOEnvironment` instance into the near-thruster `SheathModel`:
+
+| Scenario | `floating_potential` |
+|---|---|
+| Quiescent GEO | `−3.5 × Te_local` = −7 V  (local near-thruster sheath, Te_local = 2 eV) |
+| Substorm worst-case | `geo_env.floating_potential()` = −8 000 V  (whole spacecraft charges to −8 kV) |
+
+The quiescent ambient GEO potential (−3 500 V at Te = 1 000 eV) is *not* applied
+during quiescent mode because it represents the spacecraft body potential, which is
+physically separate from the local near-thruster sheath used by `SheathModel`.
+
+**`_build_sputter_geometry`** gains an optional `geo_env` parameter (default `None`).
+When supplied, the sheath is built via `_sheath_from_geo_env`; otherwise the
+pre-existing −15 V hardcoded sheath is used (backward compatible).
+
+**`_hifi_erosion_metrics`** gains three optional parameters — `sat_geo`, `thermal`,
+`integrator` — and now returns a `coupled_life_factor` key:
+- When all three are provided, calls `LifetimeAnalysis(integrator, thermal).life_prediction(
+  MissionProfile([FiringPhase("mission", sat_geo, total_s)]))`
+  and stores `min(coupled_life_factor)` across all interconnects.
+- `coupled_life_factor = fraction_remaining × thermal_life_factor` (Coffin-Manson).
+- Default `None` when not computed (backward compatible).
+
+`PlumePipeline.run_sweep` high-fidelity path now passes all three to
+`_hifi_erosion_metrics`, so every HF result dict includes `coupled_life_factor`.
+
+---
+
+### Added — `workspace_erosion_viz.py`: substorm HF comparison + lifetime output
+
+Imported `GEOEnvironment`, `ThermalCycling`, `LifetimeAnalysis`, `MissionProfile`,
+`FiringPhase` from `sputter_erosion`.
+
+New module-level constants:
+
+```python
+_GEO_QUIESCENT      = GEOEnvironment()                    # Te=1 keV, quiescent
+_GEO_SUBSTORM       = GEOEnvironment(in_substorm=True)    # −8 kV worst-case
+_HF_THERMAL         = ThermalCycling()                    # 90 cycles/yr, ΔT=120 K
+_HF_MISSION_YEARS   = 7.0
+_HF_FIRINGS_PER_DAY = 1.0
+```
+
+**`_sheath_from_geo_env(geo_env, ...)`** — same helper as in the pipeline.
+
+**`_build_hifi_sat_geo(p_nozzle, plume_dir, panel_pts, hall_plume, stack, geo_env=None)`** —
+extracted from `_hifi_for_pose` to avoid code duplication; builds `SatelliteGeometry`
+for any environment scenario.
+
+**`_hifi_for_pose`** gains `geo_env=None` parameter; delegates sat_geo construction to
+`_build_hifi_sat_geo`.  Legacy call sites (no `geo_env`) continue to use −15 V.
+
+**`_hifi_coupled_life_factor(p_nozzle, plume_dir, panel_pts, hall_plume, stack)`** —
+runs `LifetimeAnalysis(_HF_INTEGRATOR, _HF_THERMAL)` over a full-mission firing
+schedule (`HF_FIRING_S × _HF_FIRINGS_PER_DAY × 365.25 × _HF_MISSION_YEARS`); returns
+worst-case `coupled_life_factor` across all interconnects.
+
+**HF top-K loop** now evaluates three quantities per pose:
+
+| Column | Description |
+|---|---|
+| `quiescent` [nm] | HF thinning at local near-thruster sheath (−7 V) |
+| `substorm`  [nm] | HF thinning at spacecraft-level −8 kV charging |
+| `CLF`            | Coupled life factor over 7-yr NSSK mission (1 = no degradation) |
+
+Console output example:
+```
+[1/20]  proxy=4.21e-02  quiescent=0.312 nm  substorm=1.847 nm  CLF=0.9991
+  Quiescent HF range : 0.148 – 0.312 nm
+  Substorm  HF range : 0.873 – 1.847 nm
+  CLF range          : 0.9988 – 0.9994
+```
+
+---
+
 ## [2026-04-30] — Robotics upgrade: capsule collision, IK obstacle avoidance, Pinocchio RNEA, F_torque
 
 ### Added — `plume_impingement_pipeline.py`: capsule collision geometry (Phase 1)

@@ -487,6 +487,7 @@ methodology, and mission-level workflow.
 - Sheath-bias energy boost for CEX population on biased solar arrays
 - Bayesian MC uncertainty propagation (Zameshin & Sturm 2022 Ag posterior)
 - Models erosion on the Ag interconnect sidewall (25 µm exposed edge), not the panel face
+- **GEO environment** (`GEOEnvironment`) and **thermal-cycling fatigue** (`ThermalCycling`) wired into the pipeline
 
 **Quick usage via `PlumePipeline`:**
 
@@ -499,8 +500,41 @@ pipe = PlumePipeline(
     erosion_mode="high_fidelity",
 )
 results = pipe.run_sweep(cases)
+# Each result dict now includes 'coupled_life_factor' (Coffin-Manson + erosion thinning)
 mc      = pipe.run_monte_carlo(case_indices=[0, 1, 2], n_samples=200)
 ```
+
+**GEO environment sheath helper:**
+
+```python
+from plume_impingement_pipeline import _sheath_from_geo_env
+from sputter_erosion import GEOEnvironment
+
+# Quiescent: local near-thruster sheath (Te_local=2 eV → V_f = −7 V)
+sheath_q = _sheath_from_geo_env(GEOEnvironment())
+
+# Substorm worst-case: whole spacecraft at −8 000 V
+sheath_s = _sheath_from_geo_env(GEOEnvironment(in_substorm=True))
+```
+
+The physical distinction matters: during quiescent GEO the ambient floating potential
+(−3 500 V from Te = 1 keV) applies to the spacecraft *body* and is distinct from the
+near-thruster local sheath (−7 V for Te_local = 2 eV) that `SheathModel` uses to
+compute CEX ion impact energy on the solar arrays.  During a substorm the whole
+spacecraft charges to ~−8 kV, overriding the local sheath and adding ~8 keV to CEX
+ion impact energy — this is the scenario that dominates long-term interconnect erosion.
+
+**Coupled life factor:**
+
+`_hifi_erosion_metrics` (and hence every `PlumePipeline` HF result) now returns
+`coupled_life_factor`: the combined end-of-life survival probability from erosion
+thinning × Coffin-Manson thermal-fatigue scaling:
+
+```
+coupled_life_factor = fraction_remaining × (1 − frac_thinned)^fatigue_exponent
+```
+
+`1.0` = no degradation; values near 0 indicate interconnect failure risk.
 
 For direct library use (without `PlumePipeline`), see the worked example in
 `sputter_erosion/examples/example_geo_nssk.py`.
@@ -522,6 +556,29 @@ The proxy score `Σ cos^n(θ)/r²` has been validated against the high-fidelity
 integrator: Spearman ρ=0.99 across the NSSK-N feasible workspace
 (see `test_workspace_hifi.py`). It is reliable as a first-pass ranking before
 invoking the full IEDF-integrated model.
+
+**GEO environment comparison in the HF top-K loop:**
+
+For the top-K worst-proxy poses, three quantities are now reported per pose:
+
+| Metric | Description |
+|---|---|
+| `quiescent` [nm/hr] | HF thinning at near-thruster local sheath (V_f = −7 V) |
+| `substorm`  [nm/hr] | HF thinning at spacecraft-level −8 kV charging |
+| `CLF`               | Coupled life factor over 7-yr NSSK mission (1 = no degradation) |
+
+The substorm column shows the erosion amplification from −8 kV charging; the CLF
+combines that with Coffin-Manson thermal-cycling fatigue (90 cycles/yr, ΔT = 120 K,
+exponent = 2.0) scaled over the full mission.
+
+```
+Running HF integrator on top-20 worst-proxy poses (1-hr snapshot)  [quiescent | substorm | CLF over 7 yr]...
+  [ 1/20]  proxy=4.21e-02  quiescent=0.312 nm  substorm=1.847 nm  CLF=0.9991  EE=(+1.23,+0.45,-0.67)
+  ...
+  Quiescent HF range : 0.148 – 0.312 nm
+  Substorm  HF range : 0.873 – 1.847 nm
+  CLF range          : 0.9988 – 0.9994
+```
 
 ---
 

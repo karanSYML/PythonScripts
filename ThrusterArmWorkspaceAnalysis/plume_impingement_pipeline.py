@@ -53,6 +53,8 @@ try:
         MissionProfile as _SE_MissionProfile,
         FiringPhase as _SE_FiringPhase,
         LifetimeAnalysis as _SE_LifetimeAnalysis,
+        GEOEnvironment as _SE_GEOEnvironment,
+        ThermalCycling as _SE_ThermalCycling,
         MonteCarloErosion as _SE_MonteCarloErosion,
         ParameterPosterior as _SE_ParameterPosterior,
         MATERIALS as _SE_MATERIALS,
@@ -1536,6 +1538,28 @@ def _make_hall_plume(thruster: "ThrusterParams",
     )
 
 
+def _sheath_from_geo_env(
+    geo_env: "_SE_GEOEnvironment",
+    string_voltage: float = 100.0,
+    Te_local: float = 2.0,
+) -> "_SE_SheathModel":
+    """Build SheathModel from a GEOEnvironment instance.
+
+    During substorm the whole spacecraft charges to ~-8 kV, overriding the
+    local near-thruster sheath.  In quiescent GEO we use the local Te_local
+    sheath (much lower energy than the ambient GEO plasma potential).
+    """
+    if geo_env.in_substorm:
+        V_f = geo_env.floating_potential()          # -8000 V
+    else:
+        V_f = -3.5 * Te_local                       # quiescent local sheath
+    return _SE_SheathModel(
+        string_voltage=string_voltage,
+        floating_potential=V_f,
+        Te_local=Te_local,
+    )
+
+
 def _build_sputter_geometry(
     geo: "GeometryEngine",
     hall_plume: "_SE_HallThrusterPlume",
@@ -1544,6 +1568,7 @@ def _build_sputter_geometry(
     stack: "StackConfig",
     n_spanwise: int = 30,
     n_chordwise: int = 6,
+    geo_env: "_SE_GEOEnvironment | None" = None,
 ) -> "_SE_SatelliteGeometry":
     """Translate LAR-frame pipeline geometry into a sputter_erosion SatelliteGeometry.
 
@@ -1623,11 +1648,14 @@ def _build_sputter_geometry(
         interconnects=interconnects,
     )
 
-    sheath = _SE_SheathModel(
-        string_voltage=100.0,
-        floating_potential=-15.0,
-        Te_local=2.0,
-    )
+    if geo_env is not None:
+        sheath = _sheath_from_geo_env(geo_env)
+    else:
+        sheath = _SE_SheathModel(
+            string_voltage=100.0,
+            floating_potential=-15.0,
+            Te_local=2.0,
+        )
 
     return _SE_SatelliteGeometry(
         thrusters=[thruster_placement],
@@ -1640,6 +1668,9 @@ def _hifi_erosion_metrics(
     hifi_results: list,
     thickness_um: float,
     ops: "OperationalParams",
+    sat_geo: "_SE_SatelliteGeometry | None" = None,
+    thermal: "_SE_ThermalCycling | None" = None,
+    integrator: "_SE_ErosionIntegrator | None" = None,
 ) -> Dict:
     """Map List[ErosionResult] → pipeline result-dict scalar metrics.
 
@@ -1647,6 +1678,9 @@ def _hifi_erosion_metrics(
     total-firing-time formula as ErosionEstimator.cumulative_erosion_um.
     Returns the same keys consumed by run_sweep's result dict plus additional
     hifi_* keys for physics diagnostics.
+
+    When sat_geo, thermal, and integrator are all provided, also computes
+    coupled_life_factor via LifetimeAnalysis over the full mission timeline.
     """
     if not hifi_results:
         return {
@@ -1658,6 +1692,7 @@ def _hifi_erosion_metrics(
             "hifi_max_fluence_ions_m2": 0.0,
             "hifi_worst_incidence_deg": 0.0,
             "hifi_worst_j_i": 0.0,
+            "coupled_life_factor": None,
         }
 
     total_s = (ops.firing_duration_s * ops.firings_per_day
@@ -1671,6 +1706,19 @@ def _hifi_erosion_metrics(
     nonzero = [e for e in erosions_um if e > 0.0]
     mean_e = float(np.mean(nonzero)) if nonzero else 0.0
 
+    coupled_life_factor = None
+    if sat_geo is not None and thermal is not None and integrator is not None:
+        profile = _SE_MissionProfile([
+            _SE_FiringPhase("mission", sat_geo, total_s)
+        ])
+        life = _SE_LifetimeAnalysis(integrator, thermal).life_prediction(
+            profile, initial_thickness=thickness_um * 1e-6
+        )
+        if life:
+            coupled_life_factor = float(
+                min(v["coupled_life_factor"] for v in life.values())
+            )
+
     return {
         "max_erosion_um": float(max_e),
         "mean_erosion_um": float(mean_e),
@@ -1680,6 +1728,7 @@ def _hifi_erosion_metrics(
         "hifi_max_fluence_ions_m2": float(worst.fluence_ions_m2 * scale),
         "hifi_worst_incidence_deg": float(worst.incidence_angle_deg),
         "hifi_worst_j_i": float(worst.j_i),
+        "coupled_life_factor": coupled_life_factor,
     }
 
 
@@ -1780,7 +1829,12 @@ class PlumePipeline:
                 hifi_res = self._se_integrator.evaluate(
                     sat_geo, ops.firing_duration_s
                 )
-                em = _hifi_erosion_metrics(hifi_res, self.material.thickness_um, ops)
+                em = _hifi_erosion_metrics(
+                    hifi_res, self.material.thickness_um, ops,
+                    sat_geo=sat_geo,
+                    thermal=_SE_ThermalCycling(),
+                    integrator=self._se_integrator,
+                )
                 max_erosion = em["max_erosion_um"]
                 mean_erosion = em["mean_erosion_um"]
                 # Map the worst-case interconnect back to a geo_data index.

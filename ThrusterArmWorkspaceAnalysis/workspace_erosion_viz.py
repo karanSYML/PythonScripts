@@ -66,6 +66,11 @@ from sputter_erosion import (
     EcksteinPreuss     as _SE_EcksteinPreuss,
     EcksteinAngular    as _SE_EcksteinAngular,
     ErosionIntegrator  as _SE_ErosionIntegrator,
+    GEOEnvironment     as _SE_GEOEnvironment,
+    ThermalCycling     as _SE_ThermalCycling,
+    LifetimeAnalysis   as _SE_LifetimeAnalysis,
+    MissionProfile     as _SE_MissionProfile,
+    FiringPhase        as _SE_FiringPhase,
 )
 from sputter_erosion.yields import FullYield as _SE_FullYield
 
@@ -101,6 +106,13 @@ _CEX_FRACTION = 0.10
 # High-fidelity evaluation parameters
 HF_TOP_K    = 20        # worst-proxy poses evaluated with full IEDF integrator
 HF_FIRING_S = 3600.0   # 1-hour snapshot for ranking
+
+# GEO environment scenarios used in the HF substorm comparison
+_GEO_QUIESCENT       = _SE_GEOEnvironment()
+_GEO_SUBSTORM        = _SE_GEOEnvironment(in_substorm=True)
+_HF_THERMAL          = _SE_ThermalCycling()   # 90 cycles/yr, ΔT=120 K, Coffin-Manson exp=2
+_HF_MISSION_YEARS    = 7.0                    # nominal GEO NSSK lifetime for CLF scaling
+_HF_FIRINGS_PER_DAY  = 1.0                    # daily NSSK burns
 
 
 def _load_cfg() -> dict:
@@ -201,14 +213,30 @@ def _make_hall_plume() -> _SE_HallThrusterPlume:
     )
 
 
-def _hifi_for_pose(
-    p_nozzle:   np.ndarray,          # (3,) LAR-frame nozzle position
-    plume_dir:  np.ndarray,          # (3,) unit ion-beam direction
-    panel_pts:  np.ndarray,          # (M, 3) LAR-frame panel sample points
+def _sheath_from_geo_env(
+    geo_env: _SE_GEOEnvironment,
+    string_voltage: float = 100.0,
+    Te_local: float = 2.0,
+) -> _SE_SheathModel:
+    """Build SheathModel from a GEOEnvironment.
+
+    Substorm: whole spacecraft at -8 kV.
+    Quiescent: local near-thruster sheath set by Te_local (not ambient GEO Te).
+    """
+    V_f = geo_env.floating_potential() if geo_env.in_substorm else -3.5 * Te_local
+    return _SE_SheathModel(string_voltage=string_voltage,
+                           floating_potential=V_f, Te_local=Te_local)
+
+
+def _build_hifi_sat_geo(
+    p_nozzle:   np.ndarray,
+    plume_dir:  np.ndarray,
+    panel_pts:  np.ndarray,
     hall_plume: _SE_HallThrusterPlume,
     stack:      StackConfig,
-) -> float:
-    """Return max interconnect thinning [nm] for a 1-hour firing snapshot."""
+    geo_env:    _SE_GEOEnvironment | None = None,
+) -> _SE_SatelliteGeometry:
+    """Assemble a SatelliteGeometry for one arm pose HF evaluation."""
     thruster = _SE_ThrusterPlacement(
         position_body=Vector3(*p_nozzle),
         fire_direction_body=Vector3(*plume_dir),
@@ -252,16 +280,61 @@ def _hifi_for_pose(
         height=stack.panel_width,
         interconnects=interconnects,
     )
-    sat_geo = _SE_SatelliteGeometry(
+    if geo_env is not None:
+        sheath = _sheath_from_geo_env(geo_env)
+    else:
+        sheath = _SE_SheathModel(string_voltage=100.0,
+                                 floating_potential=-15.0, Te_local=2.0)
+    return _SE_SatelliteGeometry(
         thrusters=[thruster],
         solar_arrays=[solar_array],
-        sheath=_SE_SheathModel(string_voltage=100.0,
-                               floating_potential=-15.0, Te_local=2.0),
+        sheath=sheath,
     )
+
+
+def _hifi_for_pose(
+    p_nozzle:   np.ndarray,
+    plume_dir:  np.ndarray,
+    panel_pts:  np.ndarray,
+    hall_plume: _SE_HallThrusterPlume,
+    stack:      StackConfig,
+    geo_env:    _SE_GEOEnvironment | None = None,
+) -> float:
+    """Return max interconnect thinning [nm] for a 1-hour firing snapshot.
+
+    geo_env=None uses the legacy quiescent sheath (-15 V).
+    Pass _GEO_QUIESCENT or _GEO_SUBSTORM to use GEO-physics-derived potentials.
+    """
+    sat_geo = _build_hifi_sat_geo(p_nozzle, plume_dir, panel_pts,
+                                   hall_plume, stack, geo_env)
     results = _HF_INTEGRATOR.evaluate(sat_geo, HF_FIRING_S)
     if not results:
         return 0.0
     return float(max(r.total_thinning_m for r in results)) * 1e9  # nm
+
+
+def _hifi_coupled_life_factor(
+    p_nozzle:   np.ndarray,
+    plume_dir:  np.ndarray,
+    panel_pts:  np.ndarray,
+    hall_plume: _SE_HallThrusterPlume,
+    stack:      StackConfig,
+) -> float:
+    """Coupled life factor (0–1) for quiescent GEO over nominal mission.
+
+    Builds a MissionProfile scaled to _HF_MISSION_YEARS × _HF_FIRINGS_PER_DAY
+    daily NSSK burns of HF_FIRING_S each, then runs LifetimeAnalysis with
+    _HF_THERMAL (Coffin-Manson fatigue) to get the worst-case interconnect CLF.
+    CLF = fraction_remaining × thermal_life_factor; 1.0 = no degradation.
+    """
+    sat_geo = _build_hifi_sat_geo(p_nozzle, plume_dir, panel_pts,
+                                   hall_plume, stack, _GEO_QUIESCENT)
+    total_s = HF_FIRING_S * _HF_FIRINGS_PER_DAY * 365.25 * _HF_MISSION_YEARS
+    profile = _SE_MissionProfile([_SE_FiringPhase("mission", sat_geo, total_s)])
+    life = _SE_LifetimeAnalysis(_HF_INTEGRATOR, _HF_THERMAL).life_prediction(profile)
+    if not life:
+        return 1.0
+    return float(min(v["coupled_life_factor"] for v in life.values()))
 
 
 # ---------------------------------------------------------------------------
@@ -810,16 +883,27 @@ def main():
     # ── HF evaluation on top-K worst-proxy poses ───────────────────────────
     top_k_idx = np.argsort(erosion)[::-1][:HF_TOP_K]
     print(f"\nRunning HF integrator on top-{HF_TOP_K} worst-proxy poses "
-          f"({HF_FIRING_S/3600:.0f}-hr snapshot)...")
-    hall_plume = _make_hall_plume()
-    hf_nm   = np.zeros(len(top_k_idx))     # thinning [nm] per top-K pose
+          f"({HF_FIRING_S/3600:.0f}-hr snapshot)  "
+          f"[quiescent | substorm | CLF over {_HF_MISSION_YEARS:.0f} yr]...")
+    hall_plume      = _make_hall_plume()
+    hf_nm           = np.zeros(len(top_k_idx))   # quiescent thinning [nm]
+    hf_nm_substorm  = np.zeros(len(top_k_idx))   # substorm thinning  [nm]
+    hf_clf          = np.ones(len(top_k_idx))     # coupled life factor [0–1]
     for j, gi in enumerate(top_k_idx):
-        hf_nm[j] = _hifi_for_pose(
+        hf_nm[j]          = _hifi_for_pose(
+            p_valid[gi], plume_d[gi], panel_pts, hall_plume, STACK, _GEO_QUIESCENT)
+        hf_nm_substorm[j] = _hifi_for_pose(
+            p_valid[gi], plume_d[gi], panel_pts, hall_plume, STACK, _GEO_SUBSTORM)
+        hf_clf[j]         = _hifi_coupled_life_factor(
             p_valid[gi], plume_d[gi], panel_pts, hall_plume, STACK)
         print(f"  [{j+1:2d}/{HF_TOP_K}]  proxy={erosion[gi]:.3e}  "
-              f"HF={hf_nm[j]:.3f} nm  "
+              f"quiescent={hf_nm[j]:.3f} nm  "
+              f"substorm={hf_nm_substorm[j]:.3f} nm  "
+              f"CLF={hf_clf[j]:.4f}  "
               f"EE=({p_valid[gi,0]:+.2f},{p_valid[gi,1]:+.2f},{p_valid[gi,2]:+.2f})")
-    print(f"  HF range: {hf_nm.min():.3f} – {hf_nm.max():.3f} nm")
+    print(f"  Quiescent HF range : {hf_nm.min():.3f} – {hf_nm.max():.3f} nm")
+    print(f"  Substorm  HF range : {hf_nm_substorm.min():.3f} – {hf_nm_substorm.max():.3f} nm")
+    print(f"  CLF range          : {hf_clf.min():.4f} – {hf_clf.max():.4f}")
 
     # Log-scale for perceptual range
     log_erosion = np.log10(np.clip(erosion, 1e-30, None))
