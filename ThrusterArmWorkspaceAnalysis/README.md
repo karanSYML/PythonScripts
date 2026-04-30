@@ -24,10 +24,12 @@ All geometry is expressed in the **LAR frame**:
 ThrusterArmWorkspaceAnalysis/
 │
 ├── plume_impingement_pipeline.py      # Core library — all data classes + engines
-├── arm_kinematics.py                  # FK, CoG + Jacobian, CoG IK (spatial kinematics)
+├── arm_kinematics.py                  # FK, CoG + Jacobian, CoG IK with obstacle avoidance
 ├── arm_trajectory.py                  # LSPB joint trajectories + CoG-to-line planner
 ├── composite_mass_model.py            # Mission-epoch CoG model with propellant depletion
-├── feasibility_cells.py               # Joint-space grid cells, F_kin / F_align / F_CoG filters
+├── generate_arm_urdf.py               # Generate URDF from RoboticArmGeometry/StackConfig
+├── arm_dynamics.py                    # Pinocchio RNEA: joint torques + reaction wrench
+├── feasibility_cells.py               # Joint-space grid: F_kin / F_align / F_CoG / F_torque
 ├── feasibility_map.py                 # Multi-epoch feasibility map generator
 ├── workspace_erosion_viz.py           # 3D workspace coloured by erosion proxy (matplotlib + Plotly)
 ├── geometry_visualizer.py             # Interactive 3D assembly visualiser (joint angle sliders)
@@ -62,6 +64,7 @@ ThrusterArmWorkspaceAnalysis/
 
 ```bash
 pip install numpy matplotlib openpyxl plotly yourdfpy "pyglet<2" trimesh
+conda install -c conda-forge pinocchio   # for arm_dynamics.py
 ```
 
 | Package | Used for |
@@ -73,6 +76,7 @@ pip install numpy matplotlib openpyxl plotly yourdfpy "pyglet<2" trimesh
 | `yourdfpy` | Loading and viewing the generated URDF |
 | `pyglet<2` | 3-D window backend for yourdfpy / trimesh |
 | `trimesh` | Mesh handling for URDF viewer |
+| `pinocchio ≥ 4.0` | RNEA joint torques and free-flyer reaction wrench (`arm_dynamics.py`) |
 
 ---
 
@@ -247,6 +251,88 @@ success, q_sol = arm_cog_ik(arm, pivot, q_init, p_cog_target,
 
 ---
 
+### `generate_arm_urdf.py` — URDF generator
+
+Generates a URDF from `RoboticArmGeometry` and `StackConfig` parameters.  The robot has a floating-base `servicer_bus` root link followed by three revolute joints with hardware-confirmed axes and joint limits.  Each link uses a proper thin-rod inertia tensor `I = m L² / 12 · (I₃ − û û^T)` expressed along the actual link direction.
+
+```python
+from generate_arm_urdf import generate_urdf
+
+# Write to file
+urdf_str = generate_urdf(arm, stack, output_path="thruster_arm.urdf")
+
+# Or get string only (e.g. for pinocchio.buildModelFromUrdf)
+urdf_str = generate_urdf()
+```
+
+CLI:
+
+```bash
+python generate_arm_urdf.py -o thruster_arm.urdf
+```
+
+---
+
+### `arm_dynamics.py` — Joint torques and reaction wrench (Pinocchio RNEA)
+
+`ArmDynamics` wraps two Pinocchio models (fixed-base and free-flyer) to compute joint torques, the 6-DOF reaction wrench applied by the arm on the servicer bus, and orbital-frame fictitious accelerations.  Gravity is set to zero (orbital free-fall).
+
+```python
+from arm_dynamics import ArmDynamics
+import numpy as np
+
+dyn = ArmDynamics()   # uses default hardware geometry
+
+q   = np.radians([90.0, 60.0, 30.0])   # joint angles [rad]
+dq  = np.array([0.05, 0.05, 0.02])     # joint velocities [rad/s]
+ddq = np.array([0.01, 0.01, 0.005])    # joint accelerations [rad/s²]
+
+# Joint torques: τ = M(q) q̈ + C(q,q̇) q̇   (g = 0)
+tau = dyn.joint_torques(q, dq, ddq)
+# tau : (3,) [N·m]  —  J1 shoulder / J2 elbow / J3 wrist
+
+# 6-DOF reaction wrench the arm exerts on the servicer bus
+wrench = dyn.reaction_wrench(q, dq, ddq)
+# wrench : (6,) [Fx, Fy, Fz, Mx, My, Mz]  [N, N·m]
+
+# Joint-space mass matrix
+M = dyn.mass_matrix(q)    # (3, 3) [kg·m²]
+
+# Coriolis + centrifugal bias
+h = dyn.coriolis_centrifugal(q, dq)   # (3,) [N·m]
+
+# Full budget in one call
+budget = dyn.torque_budget(q, dq, ddq)
+# budget['tau']                (3,) joint torques [N·m]
+# budget['reaction_force']     (3,) force on bus  [N]
+# budget['reaction_moment']    (3,) moment on bus [N·m]
+# budget['tau_max']            max |τ_i|  [N·m]
+# budget['reaction_moment_max'] max |M_i| [N·m]
+
+# Orbital fictitious accelerations (Coriolis + centrifugal in LVLH)
+omega_orb = np.array([0.0, -1.13e-3, 0.0])   # rad/s  (LEO, nadir-pointing)
+a_fict = ArmDynamics.orbital_fictitious_acc(r_lvlh, v_lvlh, omega_orb)
+# Magnitude ~ µm/s² in LEO — can be added to model.gravity for full rigor
+```
+
+**With obstacle-avoidance IK** (Phase 2):
+
+```python
+from arm_kinematics import arm_cog_ik
+
+success, q_sol, iters = arm_cog_ik(
+    arm, pivot, q_init, target_cog,
+    obstacle_avoidance=True,
+    stack=stack,
+    servicer_yaw_deg=-25.0,
+    link_radius=0.08,         # capsule radius [m]
+    obstacle_threshold=0.15,  # repulsion activates within 15 cm [m]
+    repulsion_gain=0.5,
+)
+```
+
+---
+
 ### `arm_trajectory.py` — Joint trajectory planning
 
 LSPB (trapezoidal velocity profile) and CoG-to-line trajectory planner.
@@ -297,17 +383,21 @@ spacing = mass.suggested_epoch_spacing(eps_CoG_m=0.05)  # max safe spacing [days
 
 ### `feasibility_cells.py` — Joint-space feasibility filters
 
-Builds the joint-space grid and evaluates per-cell geometric feasibility on a vectorised 50³ grid. Implements F_kin, F_align, F_CoG (F_plume deferred to v2).
+Builds the joint-space grid and evaluates per-cell geometric feasibility on a vectorised 50³ grid. Implements F_kin (capsule collision + joint limits), F_align, F_CoG, and the optional F_torque actuator-torque filter.
 
 ```python
 from feasibility_cells import (
     FeasibilityConfig, build_joint_grid,
     compute_static_cell_quantities, compute_F_kin,
     compute_alpha, compute_r_miss, compute_F_align, compute_F_CoG,
-    binding_constraint_breakdown,
+    compute_torque_grid, compute_F_torque,
+    compute_feasibility_epoch, binding_constraint_breakdown,
 )
+from arm_dynamics import ArmDynamics
 
 config  = FeasibilityConfig.from_json()         # reads feasibility_inputs.json
+# config.tau_max_Nm = 50.0  ← actuator torque limit [N·m]
+
 q0g, q1g, q2g = build_joint_grid(arm, resolution=config.grid_resolution)
 
 # One-shot vectorised FK over entire grid
@@ -316,14 +406,27 @@ cq = compute_static_cell_quantities(arm, pivot, n_hat_ee, q0g, q1g, q2g,
 # cq['p_nozzle'] : (N0,N1,N2,3) nozzle positions
 # cq['t_hat']    : (N0,N1,N2,3) thrust unit vectors
 
-F_kin   = compute_F_kin(arm, pivot, stack, servicer_yaw_deg, cq, q0g, q1g, q2g)
-alpha   = compute_alpha(cq['t_hat'], d_hat)    # alignment angle (N0,N1,N2)
-r_miss  = compute_r_miss(cq['p_nozzle'], cq['t_hat'], p_CoG)
-F_align = compute_F_align(alpha, config.alpha_max_rad)
-F_CoG   = compute_F_CoG(r_miss, config.eps_CoG_m)
+# Kinematic feasibility (capsule collision + joint limits)
+F_kin = compute_F_kin(arm, pivot, stack, servicer_yaw_deg, cq, q0g, q1g, q2g,
+                       link_radius=0.08)     # ← capsule radius
 
-breakdown = binding_constraint_breakdown(F_kin, F_align, F_CoG)
-# → {'frac_fail_kin': ..., 'frac_fail_align': ..., 'frac_fail_CoG': ...}
+# Actuator torque filter (Pinocchio RNEA over F_kin cells only)
+dyn      = ArmDynamics(arm, stack)
+tau_peak = compute_torque_grid(dyn, q0g, q1g, q2g, F_kin)
+# tau_peak : (N0,N1,N2) peak |τ_i| [N·m],  NaN for non-F_kin cells
+
+# Combined epoch feasibility
+result = compute_feasibility_epoch(F_kin, cq['t_hat'], cq['p_nozzle'],
+                                    p_CoG, d_hat, config,
+                                    tau_peak_grid=tau_peak)
+# result['F_total']   — F_kin ∩ F_align ∩ F_CoG ∩ F_torque
+# result['F_torque']  — actuator torque mask
+# result['tau_peak']  — raw torque grid
+
+breakdown = binding_constraint_breakdown(F_kin, result['F_align'],
+                                          result['F_CoG'], result['F_torque'])
+# → {'frac_fail_kin': ..., 'frac_fail_align': ..., 'frac_fail_CoG': ...,
+#    'frac_fail_torque': ..., 'frac_infeasible': ...}
 ```
 
 **Station-keeping directions:**

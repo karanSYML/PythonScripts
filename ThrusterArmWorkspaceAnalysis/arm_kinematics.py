@@ -19,12 +19,12 @@ Algorithms ported from the MATLAB thruster-arm-robotics repository:
 from __future__ import annotations
 
 import numpy as np
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
 if TYPE_CHECKING:
-    from plume_impingement_pipeline import RoboticArmGeometry
+    from plume_impingement_pipeline import RoboticArmGeometry, StackConfig
 
-from plume_impingement_pipeline import _rodrigues
+from plume_impingement_pipeline import _rodrigues, arm_min_clearance
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +262,13 @@ def arm_cog_ik(arm: RoboticArmGeometry,
                 damping_gain: float = 1e-3,
                 position_tol: float = 1e-3,
                 max_iters: int = 100,
-                enforce_limits: bool = True
+                enforce_limits: bool = True,
+                obstacle_avoidance: bool = False,
+                stack: Optional[StackConfig] = None,
+                servicer_yaw_deg: float = 0.0,
+                link_radius: float = 0.08,
+                obstacle_threshold: float = 0.15,
+                repulsion_gain: float = 0.5,
                 ) -> Tuple[bool, np.ndarray, int]:
     """Damped least-squares CoG IK (Chan's adaptive damping).
 
@@ -275,22 +281,35 @@ def arm_cog_ik(arm: RoboticArmGeometry,
       e        = pos_mask * (target_cog − cog(q))
       sq_err   = 0.5 · eᵀ W e
       λ²       = damping_gain · sq_err         ← Chan's adaptive damping
-      Δq       = (JᵀWJ + λ²I)⁻¹ Jᵀ W e
+      Δq       = (JᵀWJ + λ²I)⁻¹ (Jᵀ W e + k_rep · ∇_q d_min)
       q       += Δq
+
+    When obstacle_avoidance=True the RHS is augmented with a repulsion
+    gradient ∂d_min/∂q (finite-differenced).  Because the Jacobian is 3×3
+    (fully constrained), there is no null-space; the repulsion is instead
+    injected into the DLS right-hand side so that the primary task still
+    dominates but the solution is steered away from obstacles when
+    d_min < obstacle_threshold.
 
     Parameters
     ----------
-    arm           : RoboticArmGeometry
-    pivot         : (3,) arm base position in LAR frame
-    q_init        : (3,) initial joint angles [rad]
-    target_cog    : (3,) desired CoG position in LAR frame
-    pos_mask      : (3,) boolean/float mask — set axis to 0 to leave it free.
-                    Default: all axes constrained ([1, 1, 1]).
-    error_weights : (3, 3) diagonal weight matrix.  Default: identity.
-    damping_gain  : scalar for Chan's adaptive damping (λ²).
-    position_tol  : convergence criterion on 0.5·eᵀWe.
-    max_iters     : maximum Newton iterations.
-    enforce_limits: if True, returns success=False when solution violates limits.
+    arm                : RoboticArmGeometry
+    pivot              : (3,) arm base position in LAR frame
+    q_init             : (3,) initial joint angles [rad]
+    target_cog         : (3,) desired CoG position in LAR frame
+    pos_mask           : (3,) boolean/float mask — set axis to 0 to leave it free.
+                         Default: all axes constrained ([1, 1, 1]).
+    error_weights      : (3, 3) diagonal weight matrix.  Default: identity.
+    damping_gain       : scalar for Chan's adaptive damping (λ²).
+    position_tol       : convergence criterion on 0.5·eᵀWe.
+    max_iters          : maximum Newton iterations.
+    enforce_limits     : if True, returns success=False when solution violates limits.
+    obstacle_avoidance : enable gradient-based obstacle repulsion.
+    stack              : StackConfig — required when obstacle_avoidance=True.
+    servicer_yaw_deg   : servicer body yaw [deg], forwarded to FK and clearance.
+    link_radius        : capsule radius [m] for clearance computation.
+    obstacle_threshold : repulsion activates when d_min < this value [m].
+    repulsion_gain     : scales the repulsion force (k_rep = gain / d_min).
 
     Returns
     -------
@@ -310,6 +329,7 @@ def arm_cog_ik(arm: RoboticArmGeometry,
     q         = np.array(q_init, dtype=float)
     eye3      = np.eye(3)
     num_iters = 0
+    _fd_step  = 0.005  # rad — finite-difference step for repulsion gradient
 
     while num_iters < max_iters:
         cog, J = arm_cog_and_jacobian(arm, pivot, q)
@@ -326,7 +346,37 @@ def arm_cog_ik(arm: RoboticArmGeometry,
         lam2           = damping_gain * sq_err
         damping_matrix = lam2 * eye3
 
-        g  = J.T @ error_weights @ error
+        g = J.T @ error_weights @ error
+
+        # Obstacle-avoidance repulsion — augments the DLS RHS when near obstacles
+        if obstacle_avoidance and stack is not None:
+            p_el, p_wr, p_nz = arm.forward_kinematics(
+                pivot, q[0], q[1], q[2], servicer_yaw_deg=servicer_yaw_deg
+            )
+            d_min = arm_min_clearance(
+                pivot, p_el, p_wr, p_nz, stack,
+                servicer_yaw_deg=servicer_yaw_deg, link_radius=link_radius,
+            )
+            if d_min < obstacle_threshold:
+                grad_d = np.zeros(3)
+                for k in range(3):
+                    qp, qm = q.copy(), q.copy()
+                    qp[k] += _fd_step
+                    qm[k] -= _fd_step
+                    elp, wrp, nzp = arm.forward_kinematics(
+                        pivot, qp[0], qp[1], qp[2], servicer_yaw_deg=servicer_yaw_deg
+                    )
+                    elm, wrm, nzm = arm.forward_kinematics(
+                        pivot, qm[0], qm[1], qm[2], servicer_yaw_deg=servicer_yaw_deg
+                    )
+                    dp = arm_min_clearance(pivot, elp, wrp, nzp, stack,
+                                          servicer_yaw_deg, link_radius)
+                    dm = arm_min_clearance(pivot, elm, wrm, nzm, stack,
+                                          servicer_yaw_deg, link_radius)
+                    grad_d[k] = (dp - dm) / (2.0 * _fd_step)
+                k_rep = repulsion_gain / max(abs(d_min), 1e-3)
+                g += k_rep * grad_d
+
         H  = J.T @ error_weights @ J + damping_matrix
         dq = np.linalg.solve(H, g)
 

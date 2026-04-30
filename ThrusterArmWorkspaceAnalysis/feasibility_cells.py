@@ -91,6 +91,7 @@ class FeasibilityConfig:
     alpha_max_deg: float = 5.0
     grid_resolution: tuple[int, int, int] = (50, 50, 50)
     epoch_schedule_days: list[float] = field(default_factory=lambda: [0, 456, 913, 1369, 1825])
+    tau_max_Nm: float = 50.0         # actuator torque limit [N·m] for F_torque filter
 
     @property
     def alpha_max_rad(self) -> float:
@@ -231,6 +232,7 @@ def compute_F_kin(
     q1_grid: np.ndarray,
     q2_grid: np.ndarray,
     verbose: bool = True,
+    link_radius: float = 0.08,
 ) -> np.ndarray:
     """Compute the kinematic feasibility mask F_kin over the full grid.
 
@@ -277,6 +279,7 @@ def compute_F_kin(
             p_nozzle[idx],
             stack,
             servicer_yaw_deg=servicer_yaw_deg,
+            link_radius=link_radius,
         ):
             F_kin[idx] = False
 
@@ -354,15 +357,24 @@ def compute_feasibility_epoch(
     p_CoG_LAR: np.ndarray,
     d_hat: np.ndarray,
     config: FeasibilityConfig,
+    tau_peak_grid: np.ndarray | None = None,
 ) -> dict[str, np.ndarray]:
-    """Compute F_d(τ) = F_kin ∩ F_align(d) ∩ F_CoG(τ) for one direction and epoch.
+    """Compute F_d(τ) = F_kin ∩ F_align(d) ∩ F_CoG(τ) [∩ F_torque] for one epoch.
 
     F_plume is omitted in v1 (CEX model deferred); treat as all-True.
+    F_torque is included when *tau_peak_grid* is provided.
+
+    Parameters
+    ----------
+    tau_peak_grid : (N0, N1, N2) peak joint torque per cell [N·m], or None.
+                    Produced by compute_torque_grid().  NaN entries (skipped
+                    cells) are treated as zero torque.
 
     Returns
     -------
     dict with boolean masks and annotation scalars (all shape (N0, N1, N2)):
       'F_total', 'F_align', 'F_CoG', 'alpha', 'r_miss'
+      and 'F_torque', 'tau_peak' when tau_peak_grid is not None.
     """
     alpha   = compute_alpha(t_hat_grid, d_hat)
     r_miss  = compute_r_miss(p_nozzle_grid, t_hat_grid, p_CoG_LAR)
@@ -370,7 +382,7 @@ def compute_feasibility_epoch(
     F_CoG   = compute_F_CoG(r_miss, config.eps_CoG_m)
     F_total = F_kin & F_align & F_CoG
 
-    return {
+    result: dict[str, np.ndarray] = {
         'F_total':  F_total,
         'F_align':  F_align,
         'F_CoG':    F_CoG,
@@ -378,26 +390,127 @@ def compute_feasibility_epoch(
         'r_miss':   r_miss,
     }
 
+    if tau_peak_grid is not None:
+        F_torque = compute_F_torque(tau_peak_grid, config.tau_max_Nm)
+        result['F_torque'] = F_torque
+        result['tau_peak'] = tau_peak_grid
+        result['F_total']  = F_total & F_torque
+
+    return result
+
 
 # ---------------------------------------------------------------------------
 # Diagnostics helpers
 # ---------------------------------------------------------------------------
 
-def binding_constraint_breakdown(F_kin: np.ndarray,
-                                  F_align: np.ndarray,
-                                  F_CoG: np.ndarray) -> dict[str, float]:
-    """Fraction of cells failing each constraint (among cells that fail F_total).
+def binding_constraint_breakdown(
+    F_kin: np.ndarray,
+    F_align: np.ndarray,
+    F_CoG: np.ndarray,
+    F_torque: np.ndarray | None = None,
+) -> dict[str, float]:
+    """Fraction of cells failing each constraint relative to the total grid size.
 
-    A cell is counted under whichever constraint eliminates it; if multiple
-    constraints fail, it is counted once per failing constraint.
+    A cell is counted once per failing constraint (multi-counting allowed).
 
-    Returns dict of fractions (0–1) relative to total grid size.
+    Parameters
+    ----------
+    F_torque : optional actuator-torque feasibility mask from compute_F_torque().
     """
     N = F_kin.size
-    infeasible = ~(F_kin & F_align & F_CoG)
-    return {
+    F_total = F_kin & F_align & F_CoG
+    if F_torque is not None:
+        F_total = F_total & F_torque
+
+    result = {
         'frac_fail_kin':   float((~F_kin).sum()) / N,
         'frac_fail_align': float((~F_align).sum()) / N,
         'frac_fail_CoG':   float((~F_CoG).sum()) / N,
-        'frac_infeasible': float(infeasible.sum()) / N,
+        'frac_infeasible': float((~F_total).sum()) / N,
     }
+    if F_torque is not None:
+        result['frac_fail_torque'] = float((~F_torque).sum()) / N
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Step 5 (optional): F_torque — actuator torque feasibility filter
+# ---------------------------------------------------------------------------
+
+_DQ_SWEEP_DEFAULT  = np.array([0.02, 0.02, 0.01])   # rad/s  — slow deployment
+_DDQ_SWEEP_DEFAULT = np.array([0.01, 0.01, 0.005])  # rad/s² — gentle acceleration
+
+
+def compute_torque_grid(
+    dyn,                            # ArmDynamics instance (typed loosely to avoid hard import)
+    q0_grid: np.ndarray,
+    q1_grid: np.ndarray,
+    q2_grid: np.ndarray,
+    F_kin: np.ndarray,
+    dq_sweep: np.ndarray | None = None,
+    ddq_sweep: np.ndarray | None = None,
+    verbose: bool = True,
+) -> np.ndarray:
+    """Peak joint torque at every cell, evaluated via Pinocchio RNEA.
+
+    Only cells where F_kin is True are evaluated (others receive NaN).
+    Torques are computed for a single representative motion state
+    (dq_sweep, ddq_sweep) modelling a slow nominal deployment.
+
+    Parameters
+    ----------
+    dyn       : ArmDynamics instance from arm_dynamics.py.
+    F_kin     : (N0, N1, N2) bool mask — only True cells are evaluated.
+    dq_sweep  : (3,) joint velocity  [rad/s]  used for RNEA.  Default: 0.02/0.02/0.01.
+    ddq_sweep : (3,) joint accel     [rad/s²] used for RNEA.  Default: 0.01/0.01/0.005.
+    verbose   : print progress and summary.
+
+    Returns
+    -------
+    tau_peak : (N0, N1, N2) float array.  Peak |τ_i| across joints [N·m].
+               NaN for cells where F_kin is False (skipped).
+    """
+    if dq_sweep  is None:
+        dq_sweep  = _DQ_SWEEP_DEFAULT
+    if ddq_sweep is None:
+        ddq_sweep = _DDQ_SWEEP_DEFAULT
+
+    dq_sweep  = np.asarray(dq_sweep,  dtype=float)
+    ddq_sweep = np.asarray(ddq_sweep, dtype=float)
+
+    shape    = q0_grid.shape
+    n_kin    = int(F_kin.sum())
+    tau_peak = np.full(shape, np.nan)
+
+    if verbose:
+        print(f"  Computing torque grid for {n_kin} kinematically feasible cells...",
+              end="", flush=True)
+
+    it = np.nditer([q0_grid, q1_grid, q2_grid], flags=['multi_index'])
+    while not it.finished:
+        idx = it.multi_index
+        if F_kin[idx]:
+            q   = np.array([float(it[0]), float(it[1]), float(it[2])])
+            tau = dyn.joint_torques(q, dq_sweep, ddq_sweep)
+            tau_peak[idx] = float(np.max(np.abs(tau)))
+        it.iternext()
+
+    if verbose:
+        valid = tau_peak[F_kin]
+        print(f" done.  τ_peak: mean={np.nanmean(valid):.2f} N·m,"
+              f" max={np.nanmax(valid):.2f} N·m")
+
+    return tau_peak
+
+
+def compute_F_torque(
+    tau_peak_grid: np.ndarray,
+    tau_max_Nm: float,
+) -> np.ndarray:
+    """Return bool mask: True where peak joint torque ≤ tau_max_Nm.
+
+    NaN entries (cells skipped by compute_torque_grid) are treated as
+    within-limit (True) so that F_kin=False cells do not count as torque
+    failures.
+    """
+    return np.where(np.isnan(tau_peak_grid), True, tau_peak_grid <= tau_max_Nm)

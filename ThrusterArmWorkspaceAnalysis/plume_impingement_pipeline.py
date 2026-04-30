@@ -608,8 +608,14 @@ def _segment_intersects_disc(P0: np.ndarray, P1: np.ndarray,
 def arm_has_collision(pivot: np.ndarray, p_elbow: np.ndarray,
                        p_wrist: np.ndarray, p_thruster: np.ndarray,
                        stack: "StackConfig",
-                       servicer_yaw_deg: float = 0.0) -> bool:
+                       servicer_yaw_deg: float = 0.0,
+                       link_radius: float = 0.08) -> bool:
     """Return True if any arm segment collides with any obstacle in the stack.
+
+    Each arm link is modelled as a capsule (segment + spherical end-caps of
+    *link_radius*) by inflating every obstacle bound by *link_radius* before
+    the segment-vs-primitive test.  The net effect is identical to a true
+    Minkowski-sum capsule check at zero extra cost.
 
     Obstacles checked
     -----------------
@@ -623,14 +629,16 @@ def arm_has_collision(pivot: np.ndarray, p_elbow: np.ndarray,
     pivot, p_elbow, p_wrist, p_thruster : arm joint positions in LAR frame
     stack            : StackConfig geometry
     servicer_yaw_deg : servicer body yaw relative to LAR frame [deg]
+    link_radius      : capsule radius for each arm link [m]
     """
+    r = link_radius
     segments = [(pivot, p_elbow), (p_elbow, p_wrist), (p_wrist, p_thruster)]
 
-    # ── 1. Client bus (AABB) ─────────────────────────────────────────────────
+    # ── 1. Client bus (AABB, inflated by r) ──────────────────────────────────
     bx = stack.client_bus_x / 2.0
     by = stack.client_bus_y / 2.0
-    client_min = np.array([-bx, -by, 0.0])
-    client_max = np.array([ bx,  by, stack.client_bus_z])
+    client_min = np.array([-bx - r, -by - r, -r])
+    client_max = np.array([ bx + r,  by + r, stack.client_bus_z + r])
     for P0, P1 in segments:
         if _segment_intersects_aabb(P0, P1, client_min, client_max):
             return True
@@ -643,15 +651,15 @@ def arm_has_collision(pivot: np.ndarray, p_elbow: np.ndarray,
 
     serv_origin = stack.servicer_origin_in_lar_frame()
 
-    # ── 2. Servicer bus (OBB) ─────────────────────────────────────────────────
-    serv_half = np.array([stack.servicer_bus_x / 2.0,
-                          stack.servicer_bus_y / 2.0,
-                          stack.servicer_bus_z / 2.0])
+    # ── 2. Servicer bus (OBB, half-extents inflated by r) ────────────────────
+    serv_half = np.array([stack.servicer_bus_x / 2.0 + r,
+                          stack.servicer_bus_y / 2.0 + r,
+                          stack.servicer_bus_z / 2.0 + r])
     for P0, P1 in segments:
         if _segment_intersects_obb(P0, P1, serv_origin, serv_half, Rz_inv):
             return True
 
-    # ── 3. Servicer solar panels (two OBBs, same yaw) ─────────────────────────
+    # ── 3. Servicer solar panels (two OBBs, half-extents inflated by r) ──────
     half_x  = stack.servicer_bus_x / 2.0
     half_y  = stack.servicer_bus_y / 2.0
     gap     = stack.servicer_panel_gap
@@ -664,12 +672,12 @@ def arm_has_collision(pivot: np.ndarray, p_elbow: np.ndarray,
         pc_body     = np.array([0.0, y_ctr_body, 0.0])
         # Panel centre in LAR frame
         pc_lar      = serv_origin + Rz_fwd @ pc_body
-        panel_half  = np.array([half_x, span / 2.0, p_thick / 2.0])
+        panel_half  = np.array([half_x + r, span / 2.0 + r, p_thick / 2.0 + r])
         for P0, P1 in segments:
             if _segment_intersects_obb(P0, P1, pc_lar, panel_half, Rz_inv):
                 return True
 
-    # ── 4. Antenna dishes (disc collision) ────────────────────────────────────
+    # ── 4. Antenna dishes (disc radius and slab thickness inflated by r) ─────
     ant_centers = stack.antenna_centers_in_lar_frame()
     ant_radii   = {
         "E1": stack.antenna_diameter_east / 2.0,
@@ -678,12 +686,133 @@ def arm_has_collision(pivot: np.ndarray, p_elbow: np.ndarray,
         "W2": stack.antenna_diameter_west / 2.0,
     }
     for name, center in ant_centers.items():
-        r = ant_radii[name]
+        disc_r = ant_radii[name] + r
         for P0, P1 in segments:
-            if _segment_intersects_disc(P0, P1, center, r):
+            if _segment_intersects_disc(P0, P1, center, disc_r, thickness=0.15 + 2 * r):
                 return True
 
     return False
+
+
+# ---------------------------------------------------------------------------
+# Clearance helpers (continuous distance for gradient-based obstacle avoidance)
+# ---------------------------------------------------------------------------
+
+def _point_to_aabb_sdf(pt: np.ndarray, box_min: np.ndarray,
+                        box_max: np.ndarray) -> float:
+    """Signed distance from a point to an AABB.
+
+    Positive  = outside (distance to nearest surface).
+    Negative  = inside  (depth below nearest face, so gradient still points out).
+    Zero      = on the surface.
+    """
+    center = (box_min + box_max) * 0.5
+    half   = (box_max - box_min) * 0.5
+    d = np.abs(pt - center) - half
+    return float(np.linalg.norm(np.maximum(d, 0.0)) + min(float(np.max(d)), 0.0))
+
+
+def _point_to_aabb_dist(pt: np.ndarray, box_min: np.ndarray,
+                         box_max: np.ndarray) -> float:
+    """Unsigned distance from a point to an AABB; 0 if the point is inside."""
+    d = np.maximum(np.maximum(box_min - pt, pt - box_max), 0.0)
+    return float(np.linalg.norm(d))
+
+
+def _segment_to_aabb_dist(P0: np.ndarray, P1: np.ndarray,
+                           box_min: np.ndarray, box_max: np.ndarray,
+                           n_samples: int = 20) -> float:
+    """Minimum unsigned distance from segment P0→P1 to AABB."""
+    ts  = np.linspace(0.0, 1.0, n_samples)
+    pts = P0[np.newaxis, :] + ts[:, np.newaxis] * (P1 - P0)[np.newaxis, :]
+    diff = np.maximum(np.maximum(box_min - pts, pts - box_max), 0.0)
+    return float(np.min(np.linalg.norm(diff, axis=1)))
+
+
+def _segment_to_aabb_sdf(P0: np.ndarray, P1: np.ndarray,
+                          box_min: np.ndarray, box_max: np.ndarray,
+                          n_samples: int = 20) -> float:
+    """Minimum signed distance from segment P0→P1 to AABB.
+
+    Returns the most-negative (deepest penetration) SDF sample along the segment.
+    """
+    ts  = np.linspace(0.0, 1.0, n_samples)
+    pts = P0[np.newaxis, :] + ts[:, np.newaxis] * (P1 - P0)[np.newaxis, :]
+    return min(_point_to_aabb_sdf(p, box_min, box_max) for p in pts)
+
+
+def arm_min_clearance(
+    pivot: np.ndarray,
+    p_elbow: np.ndarray,
+    p_wrist: np.ndarray,
+    p_thruster: np.ndarray,
+    stack: "StackConfig",
+    servicer_yaw_deg: float = 0.0,
+    link_radius: float = 0.0,
+) -> float:
+    """Minimum clearance [m] from any arm segment centreline to any obstacle.
+
+    Returns (minimum segment-to-obstacle distance) − link_radius.
+    Negative values mean the arm capsule is penetrating an obstacle.
+
+    Uses the same 4 obstacle types as arm_has_collision but returns a
+    continuous scalar suitable for gradient-based repulsion.
+    """
+    segments = [(pivot, p_elbow), (p_elbow, p_wrist), (p_wrist, p_thruster)]
+    min_d = np.inf
+
+    # 1. Client bus (AABB)
+    bx = stack.client_bus_x / 2.0
+    by = stack.client_bus_y / 2.0
+    cb_min = np.array([-bx, -by, 0.0])
+    cb_max = np.array([ bx,  by, stack.client_bus_z])
+    for P0, P1 in segments:
+        min_d = min(min_d, _segment_to_aabb_sdf(P0, P1, cb_min, cb_max))
+
+    # 2 & 3. Servicer bus + panels (OBB → body-frame AABB)
+    yaw_rad = np.radians(servicer_yaw_deg)
+    c, s    = np.cos(yaw_rad), np.sin(yaw_rad)
+    Rz_inv  = np.array([[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]])   # LAR → body
+    Rz_fwd  = Rz_inv.T                                                    # body → LAR
+    serv_origin = stack.servicer_origin_in_lar_frame()
+
+    sh = np.array([stack.servicer_bus_x / 2.0,
+                   stack.servicer_bus_y / 2.0,
+                   stack.servicer_bus_z / 2.0])
+    for P0, P1 in segments:
+        P0b = Rz_inv @ (P0 - serv_origin)
+        P1b = Rz_inv @ (P1 - serv_origin)
+        min_d = min(min_d, _segment_to_aabb_sdf(P0b, P1b, -sh, sh))
+
+    half_x  = stack.servicer_bus_x / 2.0
+    half_y  = stack.servicer_bus_y / 2.0
+    gap     = stack.servicer_panel_gap
+    span    = stack.servicer_panel_span
+    ph = np.array([half_x, span / 2.0, 0.05])   # 0.05 = p_thick / 2
+    for sign in (+1, -1):
+        y_ctr_body = sign * (half_y + gap + span / 2.0)
+        pc_lar     = serv_origin + Rz_fwd @ np.array([0.0, y_ctr_body, 0.0])
+        for P0, P1 in segments:
+            P0b = Rz_inv @ (P0 - pc_lar)
+            P1b = Rz_inv @ (P1 - pc_lar)
+            min_d = min(min_d, _segment_to_aabb_sdf(P0b, P1b, -ph, ph))
+
+    # 4. Antenna dishes (bounding box of each disc cylinder)
+    ant_centers = stack.antenna_centers_in_lar_frame()
+    ant_radii   = {
+        "E1": stack.antenna_diameter_east / 2.0,
+        "E2": stack.antenna_diameter_east / 2.0,
+        "W1": stack.antenna_diameter_west / 2.0,
+        "W2": stack.antenna_diameter_west / 2.0,
+    }
+    for name, center in ant_centers.items():
+        r_disc = ant_radii[name]
+        d_lo = center - np.array([r_disc, r_disc, 0.075])
+        d_hi = center + np.array([r_disc, r_disc, 0.075])
+        for P0, P1 in segments:
+            min_d = min(min_d, _segment_to_aabb_sdf(P0, P1, d_lo, d_hi))
+
+    return float(min_d) - link_radius
 
 
 class GeometryEngine:

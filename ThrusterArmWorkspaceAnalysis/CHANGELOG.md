@@ -5,6 +5,129 @@ Dates are in ISO 8601 format (YYYY-MM-DD).
 
 ---
 
+## [2026-04-30] — Robotics upgrade: capsule collision, IK obstacle avoidance, Pinocchio RNEA, F_torque
+
+### Added — `plume_impingement_pipeline.py`: capsule collision geometry (Phase 1)
+
+`arm_has_collision` now models each arm link as a capsule (segment swept by a
+sphere of radius `link_radius=0.08 m`) by inflating every obstacle bound before
+the segment-vs-primitive test — equivalent to a full Minkowski-sum at zero extra
+computational cost.
+
+| Obstacle | Inflation applied |
+|---|---|
+| Client bus AABB | `min -= r`, `max += r` on all three axes |
+| Servicer bus OBB | all three half-extents `+= r` |
+| Servicer panels OBB (×2) | all three half-extents `+= r` |
+| Antenna disc (×4) | radius `+= r`, slab thickness `+= 2r` |
+
+`compute_F_kin` in `feasibility_cells.py` gains a matching `link_radius: float = 0.08`
+parameter which is forwarded to `arm_has_collision`.  Default is backward-compatible.
+
+---
+
+### Added — `plume_impingement_pipeline.py`: signed-distance clearance helpers (Phase 2 support)
+
+Three new module-level functions support gradient-based obstacle avoidance:
+
+- `_point_to_aabb_sdf(pt, box_min, box_max)` — AABB signed distance function.
+  Positive = outside, negative = penetrating (depth below nearest face), zero =
+  on boundary.  Gives a non-zero gradient even when the arm centreline is inside
+  an obstacle.
+- `_segment_to_aabb_sdf(P0, P1, box_min, box_max)` — minimum SDF along a
+  segment (20 uniform samples).
+- `arm_min_clearance(pivot, p_elbow, p_wrist, p_thruster, stack, servicer_yaw_deg,
+  link_radius)` — minimum signed clearance across all four obstacle types using
+  `_segment_to_aabb_sdf`; OBBs are converted to body-frame AABB before the call;
+  antenna discs use their bounding box cylinder.  Returns `raw_sdf − link_radius`;
+  negative means the capsule surface is penetrating.
+
+---
+
+### Updated — `arm_kinematics.py`: null-space obstacle avoidance in CoG IK (Phase 2)
+
+`arm_cog_ik` gains six new optional keyword arguments:
+
+| Parameter | Default | Description |
+|---|---|---|
+| `obstacle_avoidance` | `False` | enable repulsion |
+| `stack` | `None` | StackConfig for clearance queries |
+| `servicer_yaw_deg` | `0.0` | forwarded to FK and `arm_min_clearance` |
+| `link_radius` | `0.08` | capsule radius [m] |
+| `obstacle_threshold` | `0.15` | repulsion activates when `d_min < threshold` [m] |
+| `repulsion_gain` | `0.5` | scales repulsion as `gain / |d_min|` |
+
+Because the 3×3 Jacobian is square (fully constrained), there is no null-space.
+The repulsion gradient `∂d_min/∂q` (finite-differenced at `fd_step = 0.005 rad`)
+is instead injected into the DLS right-hand side:
+
+```
+g = J^T W e  +  k_rep · ∇_q d_min
+dq = (J^T W J + λ²I)⁻¹ g
+```
+
+The primary task objective still dominates when far from obstacles; near obstacles
+the solution is steered toward clearance.  All existing callers are unaffected
+(`obstacle_avoidance=False` by default).
+
+---
+
+### Added — `generate_arm_urdf.py` + `arm_dynamics.py`: Pinocchio RNEA (Phase 3)
+
+**`generate_arm_urdf.py`**
+
+Standalone script and importable `generate_urdf(arm, stack, output_path)` function.
+Produces a 72-line URDF with:
+- `servicer_bus` floating-base root link (solid-box inertia, 744 kg)
+- Three revolute joints with hardware-confirmed axes and joint limits
+- Per-link thin-rod inertia tensors expressed in the actual link direction:
+  `I = m L² / 12 · (I₃ − û û^T)` — not a coordinate-aligned approximation
+- Fixed `nozzle_frame` child link
+
+CLI: `python generate_arm_urdf.py -o thruster_arm.urdf`
+
+**`arm_dynamics.py`** — `ArmDynamics` class (requires `pinocchio ≥ 4.0`)
+
+| Method | Returns | Description |
+|---|---|---|
+| `joint_torques(q, dq, ddq)` | (3,) N·m | Fixed-base RNEA; gravity = 0 |
+| `reaction_wrench(q, dq, ddq, ...)` | (6,) N/N·m | Free-flyer RNEA; `τ[:6]` = arm→bus wrench |
+| `mass_matrix(q)` | (3,3) kg·m² | Composite rigid-body mass matrix via CRBA |
+| `coriolis_centrifugal(q, dq)` | (3,) N·m | Bias vector `C(q,q̇)q̇` |
+| `orbital_fictitious_acc(r, v, ω)` | (3,) m/s² | Coriolis + centrifugal in LVLH frame |
+| `torque_budget(q, dq, ddq)` | dict | τ, wrench, and scalar peak values |
+
+Verified: RNEA = M·q̈ + C·q̇ to 2.8 × 10⁻¹⁷ N·m.
+
+At a 90°/60°/30° pose, 0.05 rad/s deployment velocity, 0.01 rad/s² acceleration:
+- `τ_max` = 0.44 N·m,  reaction moment on bus = 0.45 N·m
+
+---
+
+### Added — `feasibility_cells.py`: F_torque actuator-torque feasibility filter
+
+**`FeasibilityConfig`** gains `tau_max_Nm: float = 50.0` (actuator torque limit).
+
+**New functions:**
+
+- `compute_torque_grid(dyn, q0g, q1g, q2g, F_kin, dq_sweep, ddq_sweep)` — iterates
+  over kinematically feasible cells and calls `dyn.joint_torques()` via Pinocchio
+  RNEA.  Returns `tau_peak` grid (NaN for skipped cells).  Default sweep state:
+  `dq = [0.02, 0.02, 0.01]` rad/s, `ddq = [0.01, 0.01, 0.005]` rad/s².
+- `compute_F_torque(tau_peak_grid, tau_max_Nm)` — boolean mask; NaN → True.
+
+**Updated functions:**
+
+- `compute_feasibility_epoch` accepts optional `tau_peak_grid`; when supplied,
+  `F_torque` is included in `F_total` and returned in the result dict.
+- `binding_constraint_breakdown` accepts optional `F_torque`; adds
+  `frac_fail_torque` to its output dict.
+
+Benchmark on 10³ grid: 550 F_kin-feasible cells evaluated; τ_peak mean = 1.12 N·m,
+max = 1.68 N·m — all pass the 50 N·m actuator limit.
+
+---
+
 ## [2026-04-30] — workspace_erosion_viz.py: six fidelity improvements + HF overlay
 
 ### Fixed — `workspace_erosion_viz.py`
