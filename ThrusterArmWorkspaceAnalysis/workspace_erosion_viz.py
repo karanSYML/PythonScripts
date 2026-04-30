@@ -44,9 +44,30 @@ from plotly.subplots import make_subplots
 
 from plume_impingement_pipeline import (
     RoboticArmGeometry, StackConfig, ThrusterParams, arm_has_collision,
+    ErosionEstimator, MaterialParams,
 )
 from feasibility_cells import build_joint_grid, compute_static_cell_quantities, compute_F_kin
 from feasibility_map import compute_pivot
+
+import sys as _sys
+_SPUTTER_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "sputter_erosion")
+if _SPUTTER_PATH not in _sys.path:
+    _sys.path.insert(0, _SPUTTER_PATH)
+
+from sputter_erosion import (
+    Vector3,
+    ThrusterPlacement  as _SE_ThrusterPlacement,
+    SolarArray         as _SE_SolarArray,
+    Interconnect       as _SE_Interconnect,
+    SatelliteGeometry  as _SE_SatelliteGeometry,
+    SheathModel        as _SE_SheathModel,
+    HallThrusterPlume  as _SE_HallThrusterPlume,
+    SpeciesFractions   as _SE_SpeciesFractions,
+    EcksteinPreuss     as _SE_EcksteinPreuss,
+    EcksteinAngular    as _SE_EcksteinAngular,
+    ErosionIntegrator  as _SE_ErosionIntegrator,
+)
+from sputter_erosion.yields import FullYield as _SE_FullYield
 
 
 # ---------------------------------------------------------------------------
@@ -68,6 +89,19 @@ GRID_RESOLUTION   = (40, 40, 40)   # ~64k cells; ~20k after F_kin
 PANEL_N_SPAN      = 25             # longitudinal sample density per wing
 PANEL_N_CHORD     = 8             # chordwise (Y) sample density
 
+# Per-species cosine-beam exponents (Xe+, Xe2+, Xe3+).
+# Higher charge-state ions have modestly broader angular distributions.
+_SPECIES_N_EXPS = (10.0, 8.0, 6.0)
+
+# Charge-exchange (CEX) ion fraction of the total beam current.
+# CEX ions scatter near-isotropically at low energy and contribute a
+# direction-independent 1/r² floor to the panel flux.
+_CEX_FRACTION = 0.10
+
+# High-fidelity evaluation parameters
+HF_TOP_K    = 20        # worst-proxy poses evaluated with full IEDF integrator
+HF_FIRING_S = 3600.0   # 1-hour snapshot for ranking
+
 
 def _load_cfg() -> dict:
     here = os.path.dirname(os.path.abspath(__file__))
@@ -83,16 +117,22 @@ def _load_cfg() -> dict:
 # Solar panel sample grid
 # ---------------------------------------------------------------------------
 
-def _panel_grid(stack: StackConfig, tracking_deg: float = 0.0) -> np.ndarray:
-    """Return panel sample points in LAR frame, shape (N_pts, 3).
+def _panel_grid(stack: StackConfig, tracking_deg: float = 0.0):
+    """Return (panel_pts, n_inc) for the solar panels in LAR frame.
 
-    Panel hinge is at the ±X face of the client bus, at the bus mid-height
-    (Z = client_bus_z / 2), consistent with draw_panel_faces() in
-    geometry_visualizer.py. Each wing extends outward in ±X from the hinge.
+    panel_pts : (N_pts, 3) — sample point positions
+    n_inc     : (3,)       — inward surface normal of the irradiated face,
+                             i.e. pointing toward incoming ions.
+
+    At tracking_deg=0 the panels are horizontal at z = client_bus_z/2 and
+    ions from the servicer (z < z_hinge) hit the bottom face, so n_inc = [0,0,1].
+    For a tracking rotation φ around the X-aligned hinge, n_inc is rotated by
+    Rx(φ): n_inc = [0, −sin(φ), cos(φ)].
     """
     track   = np.radians(tracking_deg)
     z_hinge = stack.client_bus_z / 2.0          # panel hinge height in LAR
     hw      = stack.panel_width / 2.0
+    n_inc   = np.array([0.0, -np.sin(track), np.cos(track)])
     pts     = []
     for side in [+1, -1]:
         x_hinge = side * stack.client_bus_x / 2.0
@@ -106,7 +146,122 @@ def _panel_grid(stack: StackConfig, tracking_deg: float = 0.0) -> np.ndarray:
                 pts.append([xi,
                              yi * np.cos(track),
                              z_hinge + yi * np.sin(track)])
-    return np.array(pts)
+    return np.array(pts), n_inc
+
+
+# ---------------------------------------------------------------------------
+# Client bus AABB — used for line-of-sight occlusion
+# ---------------------------------------------------------------------------
+
+def _client_aabb(stack: StackConfig):
+    """Return (aabb_min, aabb_max) for the client bus in LAR frame, each (3,).
+
+    Client bus is centred at [0, 0, client_bus_z/2] with full dimensions
+    [client_bus_x, client_bus_y, client_bus_z].
+    """
+    hx = stack.client_bus_x / 2.0
+    hy = stack.client_bus_y / 2.0
+    return (np.array([-hx, -hy, 0.0]),
+            np.array([ hx,  hy, stack.client_bus_z]))
+
+
+# ---------------------------------------------------------------------------
+# High-fidelity single-pose evaluator (IEDF-integrated ErosionIntegrator)
+# ---------------------------------------------------------------------------
+
+_HF_YIELD_MODEL = _SE_FullYield(
+    energy_model=_SE_EcksteinPreuss(),
+    angular_model=_SE_EcksteinAngular(),
+    subthreshold_floor=0.0,
+)
+_HF_INTEGRATOR = _SE_ErosionIntegrator(
+    yield_model=_HF_YIELD_MODEL,
+    include_xe2=True,
+    include_xe3=True,
+    apply_sheath=True,
+)
+
+
+def _make_hall_plume() -> _SE_HallThrusterPlume:
+    """Build the HallThrusterPlume model from the module-level THRUSTER params."""
+    estimator = ErosionEstimator(THRUSTER, MaterialParams(name="Ag"))
+    return _SE_HallThrusterPlume(
+        V_d=THRUSTER.discharge_voltage,
+        I_beam=estimator.beam_current_A(),
+        mdot_neutral=THRUSTER.mass_flow_rate,
+        half_angle_90=np.deg2rad(THRUSTER.beam_divergence_half_angle),
+        cex_wing_amp=0.025,
+        cex_wing_width=np.deg2rad(40.0),
+        species=_SE_SpeciesFractions(
+            THRUSTER.xe1_fraction,
+            THRUSTER.xe2_fraction,
+            THRUSTER.xe3_fraction,
+        ),
+        sheath_potential=THRUSTER.sheath_potential_V,
+    )
+
+
+def _hifi_for_pose(
+    p_nozzle:   np.ndarray,          # (3,) LAR-frame nozzle position
+    plume_dir:  np.ndarray,          # (3,) unit ion-beam direction
+    panel_pts:  np.ndarray,          # (M, 3) LAR-frame panel sample points
+    hall_plume: _SE_HallThrusterPlume,
+    stack:      StackConfig,
+) -> float:
+    """Return max interconnect thinning [nm] for a 1-hour firing snapshot."""
+    thruster = _SE_ThrusterPlacement(
+        position_body=Vector3(*p_nozzle),
+        fire_direction_body=Vector3(*plume_dir),
+        plume=hall_plume,
+    )
+
+    panel_norm = np.array([0.0, 0.0, -1.0])
+    x_panel    = np.array([1.0, 0.0,  0.0])
+    y_panel    = np.cross(panel_norm, x_panel)
+    y_panel   /= np.linalg.norm(y_panel)
+
+    origin = panel_pts[0]
+    n_pts  = len(panel_pts)
+    interconnects = []
+    for i, pt in enumerate(panel_pts):
+        delta = pt - origin
+        px = float(np.dot(delta, x_panel))
+        py = float(np.dot(delta, y_panel))
+
+        to_thr    = p_nozzle - pt
+        to_thr_ip = to_thr - np.dot(to_thr, panel_norm) * panel_norm
+        ip_norm   = np.linalg.norm(to_thr_ip)
+        edge_dir  = to_thr_ip / ip_norm if ip_norm > 1e-6 else x_panel
+        interconnects.append(_SE_Interconnect(
+            position_local=(px, py),
+            exposed_face_normal=Vector3(
+                float(np.dot(edge_dir, x_panel)),
+                float(np.dot(edge_dir, y_panel)),
+                float(np.dot(edge_dir, panel_norm)),
+            ),
+            material_name="Ag",
+            string_position=float(i) / max(n_pts - 1, 1),
+            exposed_thickness=25e-6,
+        ))
+
+    solar_array = _SE_SolarArray(
+        origin_body=Vector3(*origin),
+        panel_normal_body=Vector3(*panel_norm),
+        panel_x_body=Vector3(*x_panel),
+        width=stack.panel_span_one_side * 2.0,
+        height=stack.panel_width,
+        interconnects=interconnects,
+    )
+    sat_geo = _SE_SatelliteGeometry(
+        thrusters=[thruster],
+        solar_arrays=[solar_array],
+        sheath=_SE_SheathModel(string_voltage=100.0,
+                               floating_potential=-15.0, Te_local=2.0),
+    )
+    results = _HF_INTEGRATOR.evaluate(sat_geo, HF_FIRING_S)
+    if not results:
+        return 0.0
+    return float(max(r.total_thinning_m for r in results)) * 1e9  # nm
 
 
 # ---------------------------------------------------------------------------
@@ -114,27 +269,98 @@ def _panel_grid(stack: StackConfig, tracking_deg: float = 0.0) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 def _erosion_proxy(
-    p_nozzle: np.ndarray,    # (N, 3) — nozzle positions for valid cells
-    plume_dir: np.ndarray,   # (N, 3) — unit plume direction per cell
-    panel_pts: np.ndarray,   # (M, 3) — panel sample points
-    n_exp: float,
+    p_nozzle:     np.ndarray,   # (N, 3) — nozzle positions for valid cells
+    plume_dir:    np.ndarray,   # (N, 3) — unit plume direction per cell
+    panel_pts:    np.ndarray,   # (M, 3) — panel sample points
+    n_exp:        float,
+    *,
+    panel_normal: np.ndarray | None = None,  # (3,) — inward surface normal
+    los_aabb=None,                           # None | (aabb_min, aabb_max)
+    n_exps:       tuple | None = None,       # per-species exponents (n1, n2, n3)
+    xe_fractions: tuple | None = None,       # per-species fractions  (f1, f2, f3)
+    cex_coeff:    float = 0.0,               # isotropic CEX fraction added as c/r²
+    chunk: int = 2048,
 ) -> np.ndarray:
     """Integrated relative plume flux on solar panels for each arm pose.
 
-    φ(r, θ) ∝ cos^n(θ) / r²  where θ = off-axis angle from plume axis.
+    φ(r, θ) ∝ [Σ_k f_k · cos^n_k(θ)] · cos(α_inc) / r²
+             + cex_coeff / r²          (isotropic CEX wing, no angle dependence)
+      θ       = off-axis angle from the plume beam axis
+      α_inc   = angle of incidence on the panel surface (from surface normal)
+      k       = ion species (Xe+, Xe2+, Xe3+)
     proxy[i] = Σ_j φ(r_{ij}, θ_{ij})   shape (N,)
+
+    n_exps / xe_fractions: when both supplied, computes a species-weighted
+        beam pattern instead of the single cos^n_exp term.
+    panel_normal (3,): inward normal of the irradiated panel face (pointing
+        toward incoming ions). When None, the incidence factor is omitted.
+    los_aabb: when supplied, nozzle→panel segments passing through the AABB
+        contribute zero flux (slab-method ray-AABB test, applied to both
+        directed beam and CEX term).
+    Processing is chunked to keep peak scratch-array memory ≲50 MB.
     """
-    # dv[i,j] = panel_pts[j] - p_nozzle[i]   shape (N, M, 3)
-    dv   = panel_pts[np.newaxis, :, :] - p_nozzle[:, np.newaxis, :]
-    dist = np.linalg.norm(dv, axis=-1)                             # (N, M)
-    dist = np.where(dist < 0.02, 0.02, dist)
+    N = p_nozzle.shape[0]
+    result = np.zeros(N, dtype=np.float64)
+    n_blocked = 0
+    multi_species = (n_exps is not None) and (xe_fractions is not None)
 
-    # cos(θ) = unit(dv) · plume_dir[i]
-    cos_th = np.einsum('nmi,ni->nm', dv / dist[..., np.newaxis], plume_dir)
-    cos_th = np.clip(cos_th, 0.0, 1.0)                            # (N, M)
+    if los_aabb is not None:
+        aabb_min = np.asarray(los_aabb[0], dtype=np.float64)  # (3,)
+        aabb_max = np.asarray(los_aabb[1], dtype=np.float64)
 
-    flux = (cos_th ** n_exp) / dist ** 2                           # (N, M)
-    return flux.sum(axis=-1)                                        # (N,)
+    for s in range(0, N, chunk):
+        e  = min(s + chunk, N)
+        pn = p_nozzle[s:e]                                           # (n, 3)
+        pd = plume_dir[s:e]                                          # (n, 3)
+
+        dv      = panel_pts[np.newaxis, :, :] - pn[:, np.newaxis, :]   # (n, M, 3)
+        dist    = np.linalg.norm(dv, axis=-1)                           # (n, M)
+        dist    = np.where(dist < 0.02, 0.02, dist)
+        unit_dv = dv / dist[..., np.newaxis]                            # (n, M, 3)
+
+        cos_th = np.einsum('nmi,ni->nm', unit_dv, pd)
+        cos_th = np.clip(cos_th, 0.0, 1.0)                          # (n, M)
+
+        # ── Species-weighted beam pattern ──────────────────────────────────
+        if multi_species:
+            beam = sum(f * (cos_th ** n) for f, n in zip(xe_fractions, n_exps))
+        else:
+            beam = cos_th ** n_exp
+        flux = beam / dist ** 2                                      # (n, M)
+
+        # ── Panel surface incidence angle ──────────────────────────────────
+        if panel_normal is not None:
+            # cos(α_inc) = dot(unit_ion_direction, n_inc)
+            cos_inc = np.clip(np.einsum('nmi,i->nm', unit_dv, panel_normal),
+                              0.0, 1.0)
+            flux *= cos_inc
+
+        # ── CEX isotropic wing ─────────────────────────────────────────────
+        if cex_coeff > 0.0:
+            flux += cex_coeff / dist ** 2
+
+        # ── Line-of-sight occlusion (slab method) ─────────────────────────
+        if los_aabb is not None:
+            o     = pn[:, np.newaxis, :]                             # (n, 1, 3)
+            EPS_D = 1e-10
+            dv_s  = np.where(np.abs(dv) > EPS_D, dv,
+                             EPS_D * np.sign(dv + EPS_D))
+            t0    = (aabb_min - o) / dv_s                           # (n, M, 3)
+            t1    = (aabb_max - o) / dv_s
+            t_en  = np.max(np.minimum(t0, t1), axis=-1)             # (n, M)
+            t_ex  = np.min(np.maximum(t0, t1), axis=-1)
+            blocked = (t_en + 1e-6 < t_ex) & (t_ex > 1e-6) & (t_en < 1.0 - 1e-6)
+            n_blocked += int(blocked.sum())
+            flux[blocked] = 0.0
+
+        result[s:e] = flux.sum(axis=-1)
+
+    if los_aabb is not None:
+        M   = panel_pts.shape[0]
+        pct = 100.0 * n_blocked / (N * M)
+        print(f"  LOS occlusion: {n_blocked:,} / {N * M:,} segments blocked ({pct:.1f}%)")
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -317,6 +543,8 @@ def build_plotly_figure(
     idx_min:    int,
     idx_max:    int,
     N_total:    int,
+    hf_idx:     np.ndarray | None = None,   # (K,) indices into p_valid
+    hf_nm:      np.ndarray | None = None,   # (K,) HF thinning [nm]
 ) -> go.Figure:
     """Build and return the interactive Plotly figure.
 
@@ -444,8 +672,35 @@ def build_plotly_figure(
     for idx, color, name_tag in [(idx_min, "#00E5FF", "Min-erosion pose"),
                                   (idx_max, "#FFD700", "Max-erosion pose")]:
         pe, pw, pn = ARM.forward_kinematics(
-            pivot, q0_valid[idx], q1_valid[idx], q2_valid[idx])
+            pivot, q0_valid[idx], q1_valid[idx], q2_valid[idx],
+            servicer_yaw_deg=SERVICER_YAW_DEG)
         traces.append(_arm_trace_plotly(pivot, pe, pw, pn, color, name_tag))
+
+    # ── HF top-K overlay ──────────────────────────────────────────────────
+    if hf_idx is not None and hf_nm is not None:
+        hf_pts = p_valid[hf_idx]
+        hf_hover = [
+            f"HF thinning: {hf_nm[j]:.3f} nm (1 hr)<br>"
+            f"proxy: {erosion[hf_idx[j]]:.3e}<br>"
+            f"EE ({hf_pts[j,0]:+.3f}, {hf_pts[j,1]:+.3f}, {hf_pts[j,2]:+.3f}) m"
+            for j in range(len(hf_idx))
+        ]
+        traces.append(go.Scatter3d(
+            x=hf_pts[:, 0], y=hf_pts[:, 1], z=hf_pts[:, 2],
+            mode="markers",
+            marker=dict(
+                size=7, symbol="diamond",
+                color=hf_nm, colorscale="Hot",
+                colorbar=dict(title=dict(text="HF thinning [nm]", font=dict(size=10)),
+                              thickness=12, len=0.45, x=1.10),
+                line=dict(color="black", width=1),
+                showscale=True,
+            ),
+            text=hf_hover,
+            hovertemplate="%{text}<extra></extra>",
+            name=f"HF top-{len(hf_idx)} [nm]",
+            legendgroup="hf",
+        ))
 
     # ── Assemble figure ────────────────────────────────────────────────────
     n_valid = len(p_valid)
@@ -524,13 +779,47 @@ def main():
     plume_d = -cq['t_hat'][F_kin]     # (N_valid, 3)  plasma exits along +n_hat
 
     # ── 5. Solar panel points + erosion proxy ─────────────────────────────
-    print("Computing erosion proxy (vectorized)...")
-    panel_pts = _panel_grid(STACK, tracking_deg=0.0)
-    erosion   = _erosion_proxy(p_valid, plume_d, panel_pts,
-                               n_exp=THRUSTER.plume_cosine_exponent)
+    # ── Solar panel tracking sweep — worst-case over orbit ───────────────────
+    # Panels rotate about the X-aligned hinge to track the Sun.  We sample
+    # _TRACKING_DEGS and take the element-wise maximum proxy per arm pose,
+    # giving a conservative (worst-case) erosion estimate across the orbit.
+    _TRACKING_DEGS = np.linspace(-30.0, 30.0, 7)   # ±30° in 6 steps
+    aabb    = _client_aabb(STACK)
+    xe_fracs = (THRUSTER.xe1_fraction, THRUSTER.xe2_fraction, THRUSTER.xe3_fraction)
+
+    print(f"Computing erosion proxy (LOS + incidence + multi-species, "
+          f"tracking sweep {_TRACKING_DEGS[0]:.0f}°→{_TRACKING_DEGS[-1]:.0f}°)...")
+    erosion = np.zeros(p_valid.shape[0], dtype=np.float64)
+    for t_deg in _TRACKING_DEGS:
+        panel_pts, panel_normal = _panel_grid(STACK, tracking_deg=float(t_deg))
+        e_t = _erosion_proxy(p_valid, plume_d, panel_pts,
+                             n_exp=THRUSTER.plume_cosine_exponent,
+                             panel_normal=panel_normal,
+                             los_aabb=aabb,
+                             n_exps=_SPECIES_N_EXPS,
+                             xe_fractions=xe_fracs,
+                             cex_coeff=_CEX_FRACTION)
+        np.maximum(erosion, e_t, out=erosion)
+        print(f"  tracking={t_deg:+.0f}°  max={e_t.max():.3e}  median={np.median(e_t):.3e}")
+    # Use nominal tracking=0 panel_pts for HF evaluation and drawing
+    panel_pts, _ = _panel_grid(STACK, tracking_deg=0.0)
     print(f"Erosion  min={erosion.min():.3e}  "
           f"max={erosion.max():.3e}  "
           f"median={np.median(erosion):.3e}")
+
+    # ── HF evaluation on top-K worst-proxy poses ───────────────────────────
+    top_k_idx = np.argsort(erosion)[::-1][:HF_TOP_K]
+    print(f"\nRunning HF integrator on top-{HF_TOP_K} worst-proxy poses "
+          f"({HF_FIRING_S/3600:.0f}-hr snapshot)...")
+    hall_plume = _make_hall_plume()
+    hf_nm   = np.zeros(len(top_k_idx))     # thinning [nm] per top-K pose
+    for j, gi in enumerate(top_k_idx):
+        hf_nm[j] = _hifi_for_pose(
+            p_valid[gi], plume_d[gi], panel_pts, hall_plume, STACK)
+        print(f"  [{j+1:2d}/{HF_TOP_K}]  proxy={erosion[gi]:.3e}  "
+              f"HF={hf_nm[j]:.3f} nm  "
+              f"EE=({p_valid[gi,0]:+.2f},{p_valid[gi,1]:+.2f},{p_valid[gi,2]:+.2f})")
+    print(f"  HF range: {hf_nm.min():.3f} – {hf_nm.max():.3f} nm")
 
     # Log-scale for perceptual range
     log_erosion = np.log10(np.clip(erosion, 1e-30, None))
@@ -542,7 +831,8 @@ def main():
     idx_max = int(erosion.argmax())
     for label, idx in [("Min-erosion", idx_min), ("Max-erosion", idx_max)]:
         pn = p_valid[idx]
-        pe, pw, _ = ARM.forward_kinematics(pivot, q0_valid[idx], q1_valid[idx], q2_valid[idx])
+        pe, pw, _ = ARM.forward_kinematics(pivot, q0_valid[idx], q1_valid[idx], q2_valid[idx],
+                                           servicer_yaw_deg=SERVICER_YAW_DEG)
         print(f"  {label}: EE=({pn[0]:+.2f},{pn[1]:+.2f},{pn[2]:+.2f})  "
               f"q=({np.degrees(q0_valid[idx]):.1f}°,"
               f"{np.degrees(q1_valid[idx]):.1f}°,"
@@ -554,7 +844,7 @@ def main():
     fig.suptitle(
         "Thruster Arm Workspace  —  Plume Erosion Proxy per Reachable EE Position\n"
         f"Plume direction: FK nozzle axis (CR3 @ n̂_body)  |  "
-        f"Erosion proxy: Σ cos^n(θ)/r² over {len(panel_pts)} panel points  |  "
+        f"Erosion proxy: Σ cos^n(θ)·cos(α_inc)/r²  |  LOS-occluded  |  {len(panel_pts)} panel pts  |  "
         f"{N_valid:,} collision-free poses",
         fontsize=10, fontweight="bold", y=0.995, color="#1A252F",
     )
@@ -580,8 +870,20 @@ def main():
     for idx, color, tag in [(idx_min, "#00E5FF", "Min erosion"),
                              (idx_max, "#FFD700", "Max erosion")]:
         pe, pw, pn = ARM.forward_kinematics(
-            pivot, q0_valid[idx], q1_valid[idx], q2_valid[idx])
+            pivot, q0_valid[idx], q1_valid[idx], q2_valid[idx],
+            servicer_yaw_deg=SERVICER_YAW_DEG)
         _draw_arm_at_pose(ax3d, pivot, pe, pw, pn, color, tag)
+
+    # Overlay top-K HF-evaluated poses: diamonds sized/colored by nm thinning
+    hf_pts    = p_valid[top_k_idx]             # (K, 3)
+    hf_norm   = plt.Normalize(vmin=hf_nm.min(), vmax=hf_nm.max())
+    hf_colors = cm.hot(hf_norm(hf_nm))
+    ax3d.scatter(
+        hf_pts[:, 0], hf_pts[:, 1], hf_pts[:, 2],
+        c=hf_nm, cmap="hot", norm=hf_norm,
+        s=60, marker="D", edgecolors="k", linewidths=0.5,
+        zorder=14, label=f"HF top-{HF_TOP_K} [nm]",
+    )
 
     ax3d.set_xlim(-2.5, 2.5)
     ax3d.set_ylim(-2.5, 2.5)
@@ -642,6 +944,7 @@ def main():
         q0_valid, q1_valid, q2_valid,
         pivot, cog, panel_pts, STACK,
         idx_min, idx_max, F_kin.size,
+        hf_idx=top_k_idx, hf_nm=hf_nm,
     )
 
     # ── 13. Output ─────────────────────────────────────────────────────────

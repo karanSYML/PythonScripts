@@ -176,10 +176,19 @@ ge.check_arm_collision_with_client_bus()
 ```python
 from plume_impingement_pipeline import PlumePipeline, CaseMatrixGenerator
 
-pipeline = PlumePipeline(thruster, material)
+# Fast analytical mode (default)
+pipeline = PlumePipeline(thruster, material, erosion_mode="analytical")
+
+# High-fidelity mode: Eckstein-Preuss yield, full IEDF, multi-species, sheath
+pipeline_hf = PlumePipeline(thruster, material, erosion_mode="high_fidelity")
+
 results  = pipeline.run_sweep(cases, verbose=True)   # list of result dicts
 pipeline.export_results_csv("output/results.csv")
 op_cases = pipeline.get_openplume_cases()            # MARGINAL/CAUTION subset
+
+# Bayesian MC uncertainty (requires high_fidelity mode, run after run_sweep)
+mc = pipeline_hf.run_monte_carlo(case_indices=[0, 1, 2], n_samples=200, seed=42)
+# → {idx: {p5, p50, p95, mean}}  — lifetime thinning [µm] percentiles
 ```
 
 **`run_sweep()` result dict keys (per case):**
@@ -196,6 +205,20 @@ op_cases = pipeline.get_openplume_cases()            # MARGINAL/CAUTION subset
 | `ewsk_torque_Nm` | Disturbance torque for an ideal EWSK burn [N·m] |
 | `cog_x/y/z` | Stack + arm CoG in LAR frame [m] |
 | `thruster_pos_x/y/z` | Thruster exit position in LAR frame [m] |
+
+**Additional keys in `erosion_mode="high_fidelity"`:**
+
+| Key | Description |
+|-----|-------------|
+| `hifi_mean_E_eV` | Mean ion energy at worst interconnect [eV] |
+| `hifi_sheath_boost_eV` | Sheath-bias energy added to CEX population [eV] |
+| `hifi_max_fluence_ions_m2` | Cumulative ion fluence at worst interconnect [ions/m²] |
+| `hifi_worst_incidence_deg` | Ion incidence angle at worst interconnect [°] |
+| `hifi_worst_j_i` | Local ion current density at worst interconnect [A/m²] |
+
+The high-fidelity path uses the `sputter_erosion` library; see
+[`sputter_erosion/README.md`](sputter_erosion/README.md) for model details,
+yield-model choices, and Bayesian uncertainty methodology.
 
 ---
 
@@ -345,6 +368,42 @@ r.diagnostics    # dict: epoch schedule, cell counts, binding constraints, N/S a
 
 ---
 
+### `sputter_erosion/` — High-fidelity sputter-erosion library
+
+A self-contained Python package for computing Ag interconnect erosion due to
+plasma-thruster plume impingement. Used by `PlumePipeline` when
+`erosion_mode="high_fidelity"`. See [`sputter_erosion/README.md`](sputter_erosion/README.md)
+for full documentation of the architecture, yield models, Bayesian uncertainty
+methodology, and mission-level workflow.
+
+**Key capabilities beyond the analytical model:**
+
+- Eckstein-Preuss (2003) energy-dependence + Garcia-Rosales/Eckstein angular-dependence
+- Full IEDF integration (composite primary beam + CEX wing)
+- Multi-species ions: Xe⁺/Xe²⁺/Xe³⁺ with correct per-charge energy scaling
+- Sheath-bias energy boost for CEX population on biased solar arrays
+- Bayesian MC uncertainty propagation (Zameshin & Sturm 2022 Ag posterior)
+- Models erosion on the Ag interconnect sidewall (25 µm exposed edge), not the panel face
+
+**Quick usage via `PlumePipeline`:**
+
+```python
+from plume_impingement_pipeline import PlumePipeline, ThrusterParams, MaterialParams
+
+pipe = PlumePipeline(
+    ThrusterParams(xe1_fraction=0.78, xe2_fraction=0.18, xe3_fraction=0.04),
+    MaterialParams(name="Ag", thickness_um=25.0),
+    erosion_mode="high_fidelity",
+)
+results = pipe.run_sweep(cases)
+mc      = pipe.run_monte_carlo(case_indices=[0, 1, 2], n_samples=200)
+```
+
+For direct library use (without `PlumePipeline`), see the worked example in
+`sputter_erosion/examples/example_geo_nssk.py`.
+
+---
+
 ### `workspace_erosion_viz.py` — 3D workspace erosion map
 
 Plots all collision-free nozzle positions in 3D space, coloured by the integrated relative ion flux (erosion proxy) on the solar panels. Also produces an interactive Plotly browser view.
@@ -355,6 +414,11 @@ python workspace_erosion_viz.py --save    # saves workspace_erosion.png + worksp
 ```
 
 Colour scale (log-scaled plasma map): dark purple = low erosion risk → bright yellow = high.
+
+The proxy score `Σ cos^n(θ)/r²` has been validated against the high-fidelity
+integrator: Spearman ρ=0.99 across the NSSK-N feasible workspace
+(see `test_workspace_hifi.py`). It is reliable as a first-pass ranking before
+invoking the full IEDF-integrated model.
 
 ---
 

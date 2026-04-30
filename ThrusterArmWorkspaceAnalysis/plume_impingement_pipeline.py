@@ -28,9 +28,39 @@ import numpy as np
 import itertools
 import json
 import os
+import sys as _sys
 from dataclasses import dataclass, field, asdict
 from typing import List, Tuple, Optional, Dict, Union
 import warnings
+
+# ---------------------------------------------------------------------------
+# High-fidelity sputter-erosion library (sputter_erosion/)
+# ---------------------------------------------------------------------------
+_sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "sputter_erosion"))
+try:
+    from sputter_erosion import (
+        Vector3,
+        ThrusterPlacement as _SE_ThrusterPlacement,
+        SolarArray as _SE_SolarArray,
+        Interconnect as _SE_Interconnect,
+        SatelliteGeometry as _SE_SatelliteGeometry,
+        SheathModel as _SE_SheathModel,
+        HallThrusterPlume as _SE_HallThrusterPlume,
+        SpeciesFractions as _SE_SpeciesFractions,
+        EcksteinPreuss as _SE_EcksteinPreuss,
+        EcksteinAngular as _SE_EcksteinAngular,
+        ErosionIntegrator as _SE_ErosionIntegrator,
+        MissionProfile as _SE_MissionProfile,
+        FiringPhase as _SE_FiringPhase,
+        LifetimeAnalysis as _SE_LifetimeAnalysis,
+        MonteCarloErosion as _SE_MonteCarloErosion,
+        ParameterPosterior as _SE_ParameterPosterior,
+        MATERIALS as _SE_MATERIALS,
+    )
+    from sputter_erosion.yields import FullYield as _SE_FullYield
+    _SPUTTER_LIB_AVAILABLE = True
+except ImportError:
+    _SPUTTER_LIB_AVAILABLE = False
 
 # ---------------------------------------------------------------------------
 # Rodrigues rotation helper (used by RoboticArmGeometry.forward_kinematics
@@ -66,6 +96,12 @@ class ThrusterParams:
     plume_cosine_exponent: float = 10.0        # n in cos^n(θ) model
     propellant: str = "Xenon"
     thrust_N: float = 0.08            # N  (nominal)
+    # High-fidelity mode: ion species current fractions (must sum to 1)
+    xe1_fraction: float = 0.78
+    xe2_fraction: float = 0.18
+    xe3_fraction: float = 0.04
+    # High-fidelity mode: local sheath potential for CEX ion acceleration [V]
+    sheath_potential_V: float = 20.0
 
 
 @dataclass
@@ -1349,20 +1385,234 @@ class CaseMatrixGenerator:
 # ---------------------------------------------------------------------------
 # 5.  PIPELINE RUNNER
 # ---------------------------------------------------------------------------
+# High-fidelity bridge helpers
+# ---------------------------------------------------------------------------
+
+def _make_hall_plume(thruster: "ThrusterParams",
+                     estimator: "ErosionEstimator") -> "_SE_HallThrusterPlume":
+    """Map ThrusterParams + ErosionEstimator → HallThrusterPlume."""
+    return _SE_HallThrusterPlume(
+        V_d=thruster.discharge_voltage,
+        I_beam=estimator.beam_current_A(),
+        mdot_neutral=thruster.mass_flow_rate,
+        half_angle_90=np.deg2rad(thruster.beam_divergence_half_angle),
+        cex_wing_amp=0.025,
+        cex_wing_width=np.deg2rad(40.0),
+        species=_SE_SpeciesFractions(
+            thruster.xe1_fraction,
+            thruster.xe2_fraction,
+            thruster.xe3_fraction,
+        ),
+        sheath_potential=thruster.sheath_potential_V,
+    )
+
+
+def _build_sputter_geometry(
+    geo: "GeometryEngine",
+    hall_plume: "_SE_HallThrusterPlume",
+    material_name: str,
+    ops: "OperationalParams",
+    stack: "StackConfig",
+    n_spanwise: int = 30,
+    n_chordwise: int = 6,
+) -> "_SE_SatelliteGeometry":
+    """Translate LAR-frame pipeline geometry into a sputter_erosion SatelliteGeometry.
+
+    Uses the FK-derived nozzle direction (plume_direction_fk) so that the plume
+    axis is physically correct rather than the CoG-aimed proxy. Each panel grid
+    point becomes one Interconnect whose exposed-edge normal is oriented toward
+    the thruster projected into the panel surface plane — the correct face for
+    interconnect sidewall erosion.
+    """
+    t_pos = geo.thruster_position()
+    plume_dir = geo.plume_direction_fk()
+
+    thruster_placement = _SE_ThrusterPlacement(
+        position_body=Vector3(*t_pos),
+        fire_direction_body=Vector3(*plume_dir),
+        plume=hall_plume,
+    )
+
+    panel_pts = geo.panel_grid_points(
+        n_spanwise=n_spanwise,
+        n_chordwise=n_chordwise,
+        sun_tracking_angle_deg=ops.panel_sun_tracking_angle_deg,
+    )
+    panel_norm = geo.panel_normal(ops.panel_sun_tracking_angle_deg)
+
+    # Panel local axes in LAR frame.
+    # Span runs along LAR +X; y_panel completes the right-hand frame.
+    x_panel = np.array([1.0, 0.0, 0.0])
+    y_panel = np.cross(panel_norm, x_panel)
+    norm_y = np.linalg.norm(y_panel)
+    if norm_y < 1e-9:
+        # Degenerate (panel normal parallel to X): fall back to Y span
+        x_panel = np.array([0.0, 1.0, 0.0])
+        y_panel = np.cross(panel_norm, x_panel)
+        y_panel /= np.linalg.norm(y_panel)
+    else:
+        y_panel /= norm_y
+
+    origin = panel_pts[0]
+    n_pts = len(panel_pts)
+
+    interconnects = []
+    for i, pt in enumerate(panel_pts):
+        delta = pt - origin
+        px = float(np.dot(delta, x_panel))
+        py = float(np.dot(delta, y_panel))
+
+        # Exposed interconnect edge faces toward the thruster, projected into
+        # the panel surface (i.e. the sidewall, not the panel face).
+        to_thr = t_pos - pt
+        to_thr_inplane = to_thr - np.dot(to_thr, panel_norm) * panel_norm
+        ip_norm = np.linalg.norm(to_thr_inplane)
+        if ip_norm > 1e-6:
+            edge_dir = to_thr_inplane / ip_norm
+        else:
+            edge_dir = x_panel
+
+        # Decompose edge_dir into panel-local (x, y, z=normal) components
+        en_x = float(np.dot(edge_dir, x_panel))
+        en_y = float(np.dot(edge_dir, y_panel))
+        en_z = float(np.dot(edge_dir, panel_norm))
+
+        interconnects.append(_SE_Interconnect(
+            position_local=(px, py),
+            exposed_face_normal=Vector3(en_x, en_y, en_z),
+            material_name=material_name,
+            string_position=float(i) / max(n_pts - 1, 1),
+            exposed_thickness=25e-6,
+        ))
+
+    solar_array = _SE_SolarArray(
+        origin_body=Vector3(*origin),
+        panel_normal_body=Vector3(*panel_norm),
+        panel_x_body=Vector3(*x_panel),
+        width=stack.panel_span_one_side * 2.0,
+        height=stack.panel_width,
+        interconnects=interconnects,
+    )
+
+    sheath = _SE_SheathModel(
+        string_voltage=100.0,
+        floating_potential=-15.0,
+        Te_local=2.0,
+    )
+
+    return _SE_SatelliteGeometry(
+        thrusters=[thruster_placement],
+        solar_arrays=[solar_array],
+        sheath=sheath,
+    )
+
+
+def _hifi_erosion_metrics(
+    hifi_results: list,
+    thickness_um: float,
+    ops: "OperationalParams",
+) -> Dict:
+    """Map List[ErosionResult] → pipeline result-dict scalar metrics.
+
+    Scales the per-firing thinning to full mission lifetime using the same
+    total-firing-time formula as ErosionEstimator.cumulative_erosion_um.
+    Returns the same keys consumed by run_sweep's result dict plus additional
+    hifi_* keys for physics diagnostics.
+    """
+    if not hifi_results:
+        return {
+            "max_erosion_um": 0.0,
+            "mean_erosion_um": 0.0,
+            "erosion_fraction": 0.0,
+            "hifi_mean_E_eV": 0.0,
+            "hifi_sheath_boost_eV": 0.0,
+            "hifi_max_fluence_ions_m2": 0.0,
+            "hifi_worst_incidence_deg": 0.0,
+            "hifi_worst_j_i": 0.0,
+        }
+
+    total_s = (ops.firing_duration_s * ops.firings_per_day
+               * 365.25 * ops.mission_duration_years)
+    scale = total_s / ops.firing_duration_s
+
+    erosions_um = [r.total_thinning_m * 1e6 * scale for r in hifi_results]
+    worst_idx = int(np.argmax(erosions_um))
+    worst = hifi_results[worst_idx]
+    max_e = erosions_um[worst_idx]
+    nonzero = [e for e in erosions_um if e > 0.0]
+    mean_e = float(np.mean(nonzero)) if nonzero else 0.0
+
+    return {
+        "max_erosion_um": float(max_e),
+        "mean_erosion_um": float(mean_e),
+        "erosion_fraction": float(max_e / thickness_um) if thickness_um > 0 else 0.0,
+        "hifi_mean_E_eV": float(worst.mean_E_eV),
+        "hifi_sheath_boost_eV": float(worst.sheath_boost_eV),
+        "hifi_max_fluence_ions_m2": float(worst.fluence_ions_m2 * scale),
+        "hifi_worst_incidence_deg": float(worst.incidence_angle_deg),
+        "hifi_worst_j_i": float(worst.j_i),
+    }
+
+
+# ---------------------------------------------------------------------------
 
 class PlumePipeline:
     """Orchestrates the full parametric sweep."""
 
     def __init__(self, thruster: ThrusterParams = None,
-                 material: MaterialParams = None):
+                 material: MaterialParams = None,
+                 erosion_mode: str = "analytical"):
+        """
+        Parameters
+        ----------
+        erosion_mode : "analytical" (default, fast) or "high_fidelity".
+            "analytical"   – existing Yamamura power-law single-energy model.
+            "high_fidelity" – sputter_erosion library: Eckstein-Preuss yield,
+                              full IEDF integration, multi-species, sheath bias.
+        """
         self.thruster = thruster or ThrusterParams()
         self.material = material or MaterialParams()
         self.estimator = ErosionEstimator(self.thruster, self.material)
         self.generator = CaseMatrixGenerator()
         self.results: List[Dict] = []
 
+        if erosion_mode not in ("analytical", "high_fidelity"):
+            raise ValueError(f"erosion_mode must be 'analytical' or 'high_fidelity', "
+                             f"got {erosion_mode!r}")
+        if erosion_mode == "high_fidelity":
+            if not _SPUTTER_LIB_AVAILABLE:
+                raise ImportError(
+                    "sputter_erosion library not importable. "
+                    "Ensure sputter_erosion/ is present in the project root."
+                )
+            mat_key = self.material.name
+            if mat_key not in _SE_MATERIALS:
+                # Try a simple name normalisation (e.g. "Silver_interconnect" -> "Ag")
+                _COMMON_ALIASES = {"Silver_interconnect": "Ag", "Silver": "Ag",
+                                   "Molybdenum": "Mo", "Kapton": "Kapton"}
+                mat_key = _COMMON_ALIASES.get(self.material.name, self.material.name)
+                if mat_key not in _SE_MATERIALS:
+                    raise ValueError(
+                        f"material.name {self.material.name!r} not found in "
+                        f"sputter_erosion MATERIALS registry. "
+                        f"Available keys: {sorted(_SE_MATERIALS.keys())}"
+                    )
+            self._se_material_key = mat_key
+            self._se_yield_model = _SE_FullYield(
+                energy_model=_SE_EcksteinPreuss(),
+                angular_model=_SE_EcksteinAngular(),
+                subthreshold_floor=0.0,
+            )
+            self._se_integrator = _SE_ErosionIntegrator(
+                yield_model=self._se_yield_model,
+                include_xe2=True,
+                include_xe3=True,
+                apply_sheath=True,
+            )
+        self.erosion_mode = erosion_mode
+
     def run_sweep(self, cases: List[Dict], verbose: bool = True) -> List[Dict]:
-        """Run analytical pre-screening for all cases."""
+        """Run the parametric sweep using the configured erosion_mode."""
         results = []
         n_total = len(cases)
 
@@ -1374,22 +1624,58 @@ class PlumePipeline:
                 n_spanwise=30, n_chordwise=6
             )
 
-            # Compute erosion at every panel grid point
-            n_pts = len(geo_data["distances_m"])
-            erosions = np.zeros(n_pts)
-            for i in range(n_pts):
-                erosions[i] = self.estimator.cumulative_erosion_um(
-                    geo_data["distances_m"][i],
-                    geo_data["offaxis_angles_deg"][i],
-                    geo_data["incidence_angles_deg"][i],
-                    ops
+            if self.erosion_mode == "analytical":
+                # ── Fast analytical path (unchanged) ────────────────────────
+                n_pts = len(geo_data["distances_m"])
+                erosions = np.zeros(n_pts)
+                for i in range(n_pts):
+                    erosions[i] = self.estimator.cumulative_erosion_um(
+                        geo_data["distances_m"][i],
+                        geo_data["offaxis_angles_deg"][i],
+                        geo_data["incidence_angles_deg"][i],
+                        ops
+                    )
+                max_erosion = float(np.max(erosions))
+                max_idx = int(np.argmax(erosions))
+                mean_erosion = float(np.mean(erosions[erosions > 0])) \
+                               if np.any(erosions > 0) else 0.0
+                hifi_extra: Dict = {}
+
+            else:
+                # ── High-fidelity path via sputter_erosion library ───────────
+                hall_plume = _make_hall_plume(self.thruster, self.estimator)
+                sat_geo = _build_sputter_geometry(
+                    geo, hall_plume, self._se_material_key, ops, stack,
+                    n_spanwise=30, n_chordwise=6,
                 )
+                hifi_res = self._se_integrator.evaluate(
+                    sat_geo, ops.firing_duration_s
+                )
+                em = _hifi_erosion_metrics(hifi_res, self.material.thickness_um, ops)
+                max_erosion = em["max_erosion_um"]
+                mean_erosion = em["mean_erosion_um"]
+                # Map the worst-case interconnect back to a geo_data index.
+                # ErosionResult.interconnect_index is the position in the
+                # interconnects list, which mirrors panel_pts ordering.
+                if hifi_res:
+                    scale = (ops.firing_duration_s * ops.firings_per_day
+                             * 365.25 * ops.mission_duration_years
+                             ) / ops.firing_duration_s
+                    worst_hifi_idx = int(np.argmax(
+                        [r.total_thinning_m * scale for r in hifi_res]
+                    ))
+                    max_idx = min(
+                        hifi_res[worst_hifi_idx].interconnect_index,
+                        len(geo_data["distances_m"]) - 1,
+                    )
+                else:
+                    max_idx = 0
+                hifi_extra = {k: v for k, v in em.items()
+                              if k not in ("max_erosion_um", "mean_erosion_um",
+                                           "erosion_fraction")}
 
-            max_erosion = np.max(erosions)
-            max_idx = np.argmax(erosions)
-            mean_erosion = np.mean(erosions[erosions > 0]) if np.any(erosions > 0) else 0.0
-
-            # Per-antenna erosion
+            # Per-antenna erosion (always analytical — antenna targets are
+            # point-targets outside the solar array; the library models arrays)
             ant_geo = geo.compute_antenna_flux_geometry()
             ant_erosion: Dict[str, float] = {}
             for ant_name, ant_data in ant_geo.items():
@@ -1437,7 +1723,7 @@ class PlumePipeline:
                 "ant_E1_distance_m": float(ant_geo["E1"]["distance_m"]),
                 "ant_W1_distance_m": float(ant_geo["W1"]["distance_m"]),
                 "ant_max_erosion_um": float(max(ant_erosion.values())),
-                # Thrust alignment and disturbance torque (Step 5)
+                # Thrust alignment and disturbance torque
                 "nssk_deviation_deg":      thrust_m["nssk_deviation_deg"],
                 "ewsk_deviation_deg":      thrust_m["ewsk_deviation_deg"],
                 "thruster_cog_distance_m": thrust_m["thruster_cog_distance_m"],
@@ -1448,6 +1734,8 @@ class PlumePipeline:
                 "torque_x_Nm":             thrust_m["torque_x_Nm"],
                 "torque_y_Nm":             thrust_m["torque_y_Nm"],
                 "torque_z_Nm":             thrust_m["torque_z_Nm"],
+                # High-fidelity diagnostics (populated only in "high_fidelity" mode)
+                **hifi_extra,
             }
             results.append(result)
 
@@ -1498,6 +1786,89 @@ class PlumePipeline:
             "openplume_cases_needed": len(self.get_openplume_cases()),
         }
         return summary
+
+    def run_monte_carlo(
+        self,
+        case_indices: Optional[List[int]] = None,
+        n_samples: int = 200,
+        seed: int = 42,
+    ) -> Dict[int, Dict]:
+        """Run Bayesian Monte Carlo uncertainty propagation on selected cases.
+
+        Requires erosion_mode="high_fidelity" and the sputter_erosion library.
+        Uses the Zameshin & Sturm (2022) Ag yield-parameter posterior built
+        into the library's MATERIALS registry.
+
+        Parameters
+        ----------
+        case_indices : list of indices into self.results to analyse.
+                       None → run on all stored results.
+        n_samples    : number of MC draws per case.
+        seed         : RNG seed for reproducibility.
+
+        Returns
+        -------
+        Dict keyed by case index.  Each value is a dict with:
+            p5, p50, p95   – percentile lifetime thinning [µm] for the
+                             worst interconnect in that case.
+            mean           – mean lifetime thinning [µm].
+        """
+        if self.erosion_mode != "high_fidelity":
+            raise RuntimeError(
+                "run_monte_carlo requires erosion_mode='high_fidelity'."
+            )
+        if not self.results:
+            raise RuntimeError("run_sweep must be called before run_monte_carlo.")
+
+        mat_key = self._se_material_key
+        if mat_key not in _SE_MATERIALS or "Xe" not in _SE_MATERIALS[mat_key].bayesian:
+            raise ValueError(
+                f"No Bayesian posterior available for {mat_key!r} in "
+                f"the sputter_erosion library."
+            )
+
+        posteriors = {
+            mat_key: _SE_ParameterPosterior(
+                posterior=_SE_MATERIALS[mat_key].bayesian["Xe"],
+                rho_Q_Eth=-0.4,
+            )
+        }
+        mc = _SE_MonteCarloErosion(
+            integrator=self._se_integrator,
+            posteriors=posteriors,
+            n_samples=n_samples,
+            seed=seed,
+        )
+
+        indices = case_indices if case_indices is not None else list(range(len(self.results)))
+        mc_output: Dict[int, Dict] = {}
+
+        for ci in indices:
+            case = self.results[ci]
+            arm, stack, ops = CaseMatrixGenerator.case_to_objects(case)
+            geo = GeometryEngine(arm, stack)
+            hall_plume = _make_hall_plume(self.thruster, self.estimator)
+            sat_geo = _build_sputter_geometry(
+                geo, hall_plume, mat_key, ops, stack,
+                n_spanwise=30, n_chordwise=6,
+            )
+            total_s = (ops.firing_duration_s * ops.firings_per_day
+                       * 365.25 * ops.mission_duration_years)
+            mc_res = mc.run(
+                geometry=sat_geo,
+                firing_duration_s=total_s,
+                projectile="Xe",
+            )
+            mean_thinning = mc_res["mean_thinning"]
+            j_worst = int(np.argmax(mean_thinning))
+            mc_output[ci] = {
+                "p5":  float(mc_res["p5"][j_worst] * 1e6),
+                "p50": float(mc_res["p50"][j_worst] * 1e6),
+                "p95": float(mc_res["p95"][j_worst] * 1e6),
+                "mean": float(mean_thinning[j_worst] * 1e6),
+            }
+
+        return mc_output
 
 
 # ---------------------------------------------------------------------------

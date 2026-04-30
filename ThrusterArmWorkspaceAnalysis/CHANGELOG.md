@@ -5,6 +5,234 @@ Dates are in ISO 8601 format (YYYY-MM-DD).
 
 ---
 
+## [2026-04-30] — workspace_erosion_viz.py: six fidelity improvements + HF overlay
+
+### Fixed — `workspace_erosion_viz.py`
+
+**Bug: missing `servicer_yaw_deg` in arm-drawing FK calls.**  
+Three `ARM.forward_kinematics()` calls used for drawing arm poses (Plotly trace,
+print info, and matplotlib 3D pose) defaulted to `servicer_yaw_deg=0.0` instead
+of `SERVICER_YAW_DEG=-25.0`.  The joint-space grid was computed *with* −25°
+(via `compute_static_cell_quantities(..., servicer_yaw_deg=SERVICER_YAW_DEG)`),
+so the arm was drawn 25° rotated away from its actual position, making the
+min-erosion pose appear to pass through the client satellite body.
+All three calls now explicitly pass `servicer_yaw_deg=SERVICER_YAW_DEG`.
+
+---
+
+### Updated — `workspace_erosion_viz.py`: six proxy/visualisation fidelity improvements
+
+#### 1 — Line-of-sight occlusion (correctness fix)
+
+Added `_client_aabb(stack)` helper returning `(aabb_min, aabb_max)` for the
+client bus in LAR frame.  `_erosion_proxy` now accepts `los_aabb=` and, for
+every (nozzle pose, panel point) pair, runs the slab-method ray-AABB test on
+the segment.  Blocked segments contribute zero flux.
+
+- **Effect**: 31.1 % of the 16.5 M nozzle→panel segments are occluded by the
+  client bus body.  Without this, poses where the satellite body lies between
+  the nozzle and the panels are incorrectly credited with high flux.
+
+Processing is now chunked (default 2 048 poses/pass) so peak scratch-array
+memory stays ≲50 MB regardless of grid size.
+
+#### 2 — Panel surface incidence angle
+
+`_panel_grid` now returns `(panel_pts, n_inc)` where `n_inc` is the inward
+surface normal of the irradiated (servicer-facing) panel face:
+
+```
+n_inc = Rx(track) @ [0, 0, 1] = [0, −sin(φ), cos(φ)]
+```
+
+Each panel-point contribution is weighted by
+`cos(α_inc) = clip(dot(unit_ion_dir, n_inc), 0, 1)`.
+This penalises grazing incidence and correctly goes to zero when the plume
+arrives parallel to the panel surface.
+
+- **Effect**: max proxy 4.08 → 2.62; median halved.
+
+#### 3 — Multi-species beam exponent
+
+Module constant `_SPECIES_N_EXPS = (10.0, 8.0, 6.0)` for Xe⁺/Xe²⁺/Xe³⁺.
+The directed-beam term is now a species-weighted sum:
+
+```
+beam = Σ_k  f_k · cos^{n_k}(θ)      k ∈ {Xe⁺, Xe²⁺, Xe³⁺}
+```
+
+using `THRUSTER.xe1_fraction` / `xe2_fraction` / `xe3_fraction` from
+`ThrusterParams`.  Higher charge-state ions have slightly broader
+distributions (lower `n_k`), spreading more flux to off-axis panel regions.
+
+- **Effect**: max +5 %; median +2× vs. single-species model.
+
+#### 4 — Solar panel tracking angle worst-case envelope
+
+`_TRACKING_DEGS = np.linspace(-30, 30, 7)`.  For each tracking angle the proxy
+is computed independently with the correspondingly rotated `panel_pts` and
+`n_inc`, and the element-wise maximum is accumulated across the sweep.  Gives
+a conservative (worst-case over-orbit) erosion estimate per arm pose.
+
+- **Effect**: max +1 %; median envelope raised by ~20 %.
+
+#### 5 — CEX isotropic wing
+
+Module constant `_CEX_FRACTION = 0.10`.  An additive `cex_coeff / r²` term
+(no angular dependence) is added to the directed beam flux before the LOS
+mask is applied, representing the near-isotropic low-energy charge-exchange
+population (~10 % of beam current in SPT-100-class thrusters).
+
+- **Effect**: dominates for poses far off the plume axis; median proxy 1.5e-3
+  → 0.57.  Confirms that CEX background flux sets a non-zero erosion floor
+  across the entire accessible workspace.
+
+#### 6 — High-fidelity IEDF-integrated overlay on top-K poses
+
+Imports `ErosionIntegrator`, `HallThrusterPlume`, `SatelliteGeometry`, and
+related classes from `sputter_erosion/`.  After the proxy sweep:
+
+1. Top `HF_TOP_K = 20` worst-proxy poses are selected.
+2. `_hifi_for_pose(p_nozzle, plume_dir, panel_pts, hall_plume, stack)` builds
+   a full `SatelliteGeometry` (each panel sample point as one Ag interconnect,
+   25 µm exposed edge) and runs `ErosionIntegrator.evaluate` for
+   `HF_FIRING_S = 3600 s`.
+3. Results printed to console and overlaid as diamond markers on both the
+   matplotlib 3D plot (hot colormap, scaled by nm thinning) and the Plotly
+   figure (hover tooltip: proxy + HF nm).
+
+**Result from 40³ grid run, top-20 HF evaluation:**
+
+| Metric | Value |
+|---|---|
+| HF thinning range (top-20) | 147–253 nm / hr |
+| Worst pose | EE=(−1.34, −0.12, +0.91) m, q=(55.4°, 96.4°, 29.8°) |
+| Proxy for worst pose | 3.936 |
+
+---
+
+### Updated — Open items
+
+- [x] ~~Add CEX halo model~~ — CEX isotropic proxy term added (`_CEX_FRACTION`);
+  full HallThrusterPlume CEX wing used in HF path.
+
+---
+
+## [2026-04-29] — High-fidelity sputter-erosion integration
+
+### Added — `sputter_erosion/` package integration into `plume_impingement_pipeline.py`
+
+Integrated the `sputter_erosion` library (in `sputter_erosion/`) as an optional
+high-fidelity erosion path in `PlumePipeline`.  The analytical Yamamura power-law
+path is preserved and remains the default.
+
+#### `plume_impingement_pipeline.py`
+
+**New `ThrusterParams` fields:**
+
+| Field | Default | Description |
+|---|---|---|
+| `xe1_fraction` | 0.78 | Xe⁺ current fraction |
+| `xe2_fraction` | 0.18 | Xe²⁺ current fraction |
+| `xe3_fraction` | 0.04 | Xe³⁺ current fraction |
+| `sheath_potential_V` | 20.0 | Local sheath potential for CEX ion acceleration [V] |
+
+**New module-level helpers:**
+
+- `_make_hall_plume(thruster, estimator)` — maps `ThrusterParams` + `ErosionEstimator`
+  to a `HallThrusterPlume` (composite primary Gaussian IEDF + CEX wing).
+- `_build_sputter_geometry(geo, hall_plume, material_name, ops, stack)` — translates
+  LAR-frame pipeline geometry into a `SatelliteGeometry`.  Uses
+  `geo.plume_direction_fk()` (FK nozzle axis) for the plume direction, and models
+  each panel grid point as one `Interconnect` with its `exposed_face_normal` oriented
+  toward the thruster projected into the panel surface plane — the correct sidewall
+  face for Ag interconnect erosion.
+- `_hifi_erosion_metrics(hifi_results, thickness_um, ops)` — maps
+  `List[ErosionResult]` to the pipeline result-dict scalar format, scaling
+  per-firing thinning to full mission lifetime.
+
+**Updated `PlumePipeline.__init__`:**
+
+```python
+PlumePipeline(thruster=None, material=None, erosion_mode="analytical")
+```
+
+- `erosion_mode="analytical"` (default) — unchanged behaviour.
+- `erosion_mode="high_fidelity"` — Eckstein-Preuss yield model, full IEDF
+  integration, multi-species (Xe⁺/Xe²⁺/Xe³⁺), sheath bias.
+  Material name aliases (`"Silver_interconnect"` → `"Ag"`, etc.) are resolved
+  automatically; unknown materials raise `ValueError` immediately at construction.
+
+**Updated `run_sweep()` result dict** — in `"high_fidelity"` mode the following
+extra keys are populated:
+
+| Key | Description |
+|---|---|
+| `hifi_mean_E_eV` | Mean ion energy at worst interconnect [eV] |
+| `hifi_sheath_boost_eV` | Sheath-bias energy added to CEX population [eV] |
+| `hifi_max_fluence_ions_m2` | Cumulative ion fluence at worst interconnect [ions/m²] |
+| `hifi_worst_incidence_deg` | Ion incidence angle at worst interconnect [°] |
+| `hifi_worst_j_i` | Local ion current density at worst interconnect [A/m²] |
+
+**New `PlumePipeline.run_monte_carlo(case_indices=None, n_samples=200, seed=42)`:**
+Requires `erosion_mode="high_fidelity"`.  Runs Bayesian MC over the
+Zameshin & Sturm (2022) Ag yield-parameter posterior built into
+`sputter_erosion.MATERIALS["Ag"].bayesian["Xe"]`.  Returns
+`{case_idx: {p5, p50, p95, mean}}` in µm.
+
+#### Key physics differences vs. analytical path
+
+| Aspect | Analytical | High-fidelity |
+|---|---|---|
+| Yield model | Yamamura power-law, single energy | Eckstein-Preuss, IEDF-integrated |
+| Angular dependence | Cosine Lambert on panel face | Garcia-Rosales/Eckstein on interconnect sidewall |
+| Target surface | Full panel face | Exposed Ag interconnect edge (25 µm) |
+| Ion species | Single Xe⁺ | Xe⁺/Xe²⁺/Xe³⁺ with correct per-charge energy |
+| Sheath bias | Not modelled | CEX population accelerated by string bias (66–113 eV) |
+| Uncertainty | None | Bayesian MC (p5/p50/p95) |
+
+Empirical result (8-case yaw sweep, SPT-100-like, 5 yr, Ag 25 µm): HF model
+predicts ~10–40× less erosion than the analytical model.  Both models agree on
+the worst-case yaw angle (yaw=0°, Spearman ρ=1.0 over the sweep).  The analytical
+model's conservatism is driven by treating the whole panel face as the erosion
+surface and using a simplified single-energy yield.
+
+### Added — `test_sputter_integration.py`
+
+Four-section integration test suite:
+
+1. **Smoke tests** — library import, pipeline construction, material alias resolution,
+   bad-mode error.
+2. **Key parity** — verifies all shared keys are present in both modes and all
+   `hifi_*` keys appear only in the HF result.
+3. **Yaw sweep comparison** — 8-case shoulder-yaw sweep (−30° to 90°), analytical
+   vs. HF side-by-side with HF/analytic ratio, mean ion energy, sheath boost,
+   and Spearman rank correlation.
+4. **Monte Carlo** — 200-sample Bayesian MC on the 3 worst HF cases; reports
+   p5/p50/p95/mean in µm and the uncertainty spread (p95/p5 ≈ 3.9×).
+
+Run with `python test_sputter_integration.py`.
+
+### Added — `test_workspace_hifi.py`
+
+Validates whether the fast erosion proxy (`Σ cos^n(θ)/r²` from
+`workspace_erosion_viz`) correctly rank-orders arm poses by erosion risk relative
+to the high-fidelity integrator.
+
+Pipeline: 12×12×12 joint-space grid → F_kin (collision + joint limits) →
+F_align (NSSK-N, α_max=15°) → 19-pose sample across proxy quintiles →
+HF integrator (1-hr snapshot per pose) → Spearman/Pearson rank correlation.
+
+Result: Spearman ρ=0.99, Pearson r=0.99 (log-linear).  The proxy
+correctly ranks erosion risk across the accessible NSSK-N workspace.
+Mean HF erosion per proxy quintile rises monotonically (Q1: 0.18 nm →
+Q5: 6.6 nm over 1 hr), validating the proxy as a reliable first-pass
+filter before invoking the HF integrator.
+
+Run with `python test_workspace_hifi.py`.
+
+---
+
 ## [Unreleased] — 2026-04-23
 
 ### Updated — Hardware geometry inputs (all six files)
@@ -342,5 +570,5 @@ station-keeping being the dominant burn regime.
 - [ ] Confirm `tank_centroid_lar_m` from structural model
 - [ ] Implement F_plume (primary beam cone check against no-impingement zones)
 - [ ] Build `feasibility_map_runner.py` — CLI wrapper that runs the full pipeline, saves results to disk, and calls `print_summary()`
-- [ ] Add CEX halo model (deferred from v1)
+- [x] ~~Add CEX halo model~~ — CEX isotropic proxy term + full HF path added (2026-04-30)
 - [ ] Vectorise `compute_F_kin` for performance at 50³+ grids
