@@ -42,12 +42,12 @@
   "tank_centroid_lar_m": [0.2, 0.0, -1.15],
 
   "_section_constraints": "Feasibility filter thresholds — adjust based on mission requirements.",
-  "eps_CoG_m": 0.05,
-  "alpha_max_deg": 5.0,
+  "eps_CoG_m": 0.20,
+  "alpha_max_deg": 20.0,
   "plume_beam_threshold_Wm2": 1e-6,
 
   "_section_grid": "Joint-space grid resolution [N_q0, N_q1, N_q2]. 50^3 = 125k cells.",
-  "grid_resolution": [50, 50, 50],
+  "grid_resolution": [40, 40, 40],
 
   "_section_epochs": [
     "Mission epochs to evaluate [days from BOL].",
