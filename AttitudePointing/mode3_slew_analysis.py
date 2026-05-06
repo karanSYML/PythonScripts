@@ -35,7 +35,7 @@ J2000          = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 T0_UTC         = datetime(2028, 9, 1,  3, 49, 53, tzinfo=timezone.utc)
 T0_SEC         = (T0_UTC - J2000).total_seconds()
 
-ANTENNA_HCONE  = 30.0
+ANTENNA_HCONE  = 4.5    # X-band 3 dB half-cone [deg] (9° full cone)
 CLOSE_KM       = -5.0
 WINDOW_HRS     = 6.0
 WINDOW_DUR_MIN = 25.0
@@ -262,7 +262,7 @@ def generate_figure(days, ang, slew_m1, slew_m2, ant_err, dlambda,
              label="Antenna error in combined attitude (best of ±Y)")
     ax3.fill_between(d, 0, ae, alpha=0.08, color="#E11D48")
     ax3.axhline(ANTENNA_HCONE, color="#059669", lw=1.5, ls="-",
-                label=f"S-band 3 dB half-cone {ANTENNA_HCONE:.0f}°")
+                label=f"X-band 3 dB half-cone {ANTENNA_HCONE:.0f}°")
     ax3.fill_between(d, 0, ANTENNA_HCONE, alpha=0.08, color="#059669")
     # ConOps windows
     for d0 in np.arange(lo, hi, win_int):
@@ -275,7 +275,7 @@ def generate_figure(days, ang, slew_m1, slew_m2, ant_err, dlambda,
              bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
                        edgecolor="#CBD5E1", alpha=0.93))
     ax3.set_ylim(0, 95)
-    ax3.set_ylabel("S-band antenna\nerror [deg]", fontsize=10,
+    ax3.set_ylabel("X-band antenna\nerror [deg]", fontsize=10,
                    color=txt, fontweight="medium")
     ax3.legend(fontsize=8, framealpha=0.9, loc="upper right", edgecolor="#E2E8F0")
     _add_maneuvers(ax3, man_rcs, man_pps, lo, hi)
@@ -308,8 +308,8 @@ def generate_figure(days, ang, slew_m1, slew_m2, ant_err, dlambda,
 
 def parse_args():
     p = argparse.ArgumentParser(description="Slew analysis: Mode 1 vs Mode 2")
-    p.add_argument("--mode1-dir", default="end1_target_sunOpt")
-    p.add_argument("--mode2-dir", default="end1_Nadir_sunOpt")
+    p.add_argument("--mode1-dir", default="og3_target_sunOpt_nominal")
+    p.add_argument("--mode2-dir", default="og3_Nadir_sunOpt_nominal")
     p.add_argument("--output-far",   default="slew_far.png")
     p.add_argument("--output-close", default="slew_close.png")
     p.add_argument("--dpi", type=int, default=180)

@@ -7,7 +7,7 @@ Mode 1 (Target+Sun) and Mode 2 (Nadir+Sun).
 
 Spacecraft geometry:
     Camera boresight: +Z body axis
-    S-band antenna:   +Y body axis (also on −Y)
+    X-band antenna:   +Y body axis (also on −Y)
 
 Feasibility metric per mode
   Mode 1 (Target+Sun): camera locked on target (+Z → target).
@@ -46,7 +46,7 @@ J2000          = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 T0_UTC         = datetime(2028, 9, 1,  3, 49, 53, tzinfo=timezone.utc)
 T0_SEC         = (T0_UTC - J2000).total_seconds()
 
-ANTENNA_HCONE  = 30.0   # S-band 3 dB half-cone [deg] (60° full cone confirmed)
+ANTENNA_HCONE  = 4.5    # X-band 3 dB half-cone [deg] (9° full cone)
 CLOSE_KM       = -5.0   # along-track boundary far ↔ close
 WINDOW_HRS     = 6.0
 WINDOW_DUR_MIN = 25.0
@@ -165,9 +165,9 @@ def _add_maneuvers(ax, man_rcs, man_pps, lo, hi):
 
 def _feasibility_table(err, threshold=ANTENNA_HCONE):
     rows = [f"{'Threshold':<9} {'Feasibility':>11}", "─" * 21]
-    for bw in [10, 20, 30, 45]:
+    for bw in [2, 4, 5, 10]:
         pct = np.sum(err <= bw) / len(err) * 100
-        marker = " ←" if bw == int(threshold) else ""
+        marker = " ←" if abs(bw - threshold) < 0.6 else ""
         rows.append(f"≤{bw:2d}°{'':<6} {pct:6.1f}%{marker}")
     return "\n".join(rows)
 
@@ -229,9 +229,9 @@ def generate_figure(m1, m2, x_range, phase_label, filepath, dpi):
     ax2.fill_between(d1, 0, err1, alpha=0.07, color="#E11D48")
     ax2.fill_between(d2, 0, err2, alpha=0.05, color="#7C3AED")
 
-    # S-band 3 dB half-cone
+    # X-band 3 dB half-cone
     ax2.axhline(ANTENNA_HCONE, color="#059669", lw=1.6, ls="-",
-                label=f"S-band 3 dB half-cone {ANTENNA_HCONE:.0f}°")
+                label=f"X-band 3 dB half-cone {ANTENNA_HCONE:.0f}°")
     ax2.fill_between(d1, 0, ANTENNA_HCONE, alpha=0.07, color="#059669")
 
     # ConOps windows
@@ -276,7 +276,7 @@ def generate_figure(m1, m2, x_range, phase_label, filepath, dpi):
 
     fig.suptitle(
         f"Earth + Target Pointing Feasibility — {phase_label}\n"
-        f"Mode 1: antenna error  |  Mode 2: target error  |  S-band {ANTENNA_HCONE:.0f}° half-cone",
+        f"Mode 1: antenna error  |  Mode 2: target error  |  X-band {ANTENNA_HCONE:.0f}° half-cone",
         fontsize=13, color=txt, fontweight="bold", y=0.99, linespacing=1.4)
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])
@@ -289,9 +289,9 @@ def generate_figure(m1, m2, x_range, phase_label, filepath, dpi):
 def print_summary(label, err, threshold=ANTENNA_HCONE):
     print(f"\n  {label}:")
     print(f"    Error range: {err.min():.1f}° – {err.max():.1f}°  (mean {err.mean():.1f}°)")
-    for bw in [10, 20, 30, 45]:
+    for bw in [2, 4, 5, 10]:
         pct = np.sum(err <= bw) / len(err) * 100
-        marker = " ← S-band 3 dB" if bw == int(threshold) else ""
+        marker = " ← X-band 3 dB" if abs(bw - threshold) < 0.6 else ""
         print(f"    ≤{bw:2d}°: {pct:5.1f}%{marker}")
 
 
@@ -299,9 +299,9 @@ def print_summary(label, err, threshold=ANTENNA_HCONE):
 
 def parse_args():
     p = argparse.ArgumentParser(description="Earth+Target combined pointing feasibility")
-    p.add_argument("--mode1-dir", default="end1_target_sunOpt",
+    p.add_argument("--mode1-dir", default="og3_target_sunOpt_nominal",
                    help="Mode 1 (Target+Sun) mat directory")
-    p.add_argument("--mode2-dir", default="end1_Nadir_sunOpt",
+    p.add_argument("--mode2-dir", default="og3_Nadir_sunOpt_nominal",
                    help="Mode 2 (Nadir+Sun) mat directory")
     p.add_argument("--output-far",   default="feasibility_far.png")
     p.add_argument("--output-close", default="feasibility_close.png")
@@ -314,7 +314,7 @@ def main():
 
     print(f"\n{'='*60}")
     print(f"  Earth+Target Pointing Feasibility")
-    print(f"  Camera +Z  |  Antenna ±Y  |  S-band {ANTENNA_HCONE:.0f}° half-cone")
+    print(f"  Camera +Z  |  Antenna ±Y  |  X-band {ANTENNA_HCONE:.0f}° half-cone")
     print(f"{'='*60}")
 
     print("\nLoading Mode 1 (Target+Sun)...")

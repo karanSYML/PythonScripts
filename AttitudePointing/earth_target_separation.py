@@ -31,7 +31,7 @@ T0_UTC   = datetime(2028, 9, 1,  3, 49, 53, tzinfo=timezone.utc)
 T0_SEC   = (T0_UTC - J2000).total_seconds()
 
 CLOSE_KM       = -5.0   # along-track boundary far ↔ close
-ANTENNA_HCONE  = 30.0   # S-band half-cone angle [deg] — confirmed 60° full cone
+ANTENNA_HCONE  = 4.5   # X-band half-cone angle [deg] — 9° full cone
 WINDOW_HRS     = 6.0    # ConOps window interval [h]
 WINDOW_DUR_MIN = 25.0   # ConOps window duration [min]
 
@@ -170,7 +170,7 @@ def plot_far(data, x_range, filepath, dpi):
     # Feasibility band
     ax1.fill_between(days, 90 - ANTENNA_HCONE, 90 + ANTENNA_HCONE,
                      alpha=0.12, color="#059669",
-                     label=f"Feasible ±{ANTENNA_HCONE:.0f}° (S-band 3 dB half-cone)")
+                     label=f"Feasible ±{ANTENNA_HCONE:.0f}° (X-band 3 dB half-cone)")
     ax1.set_ylim(0, 185)
     ax1.set_ylabel("Earth–Target\nangular sep. [deg]", fontsize=10,
                    color=txt, fontweight="medium")
@@ -186,7 +186,7 @@ def plot_far(data, x_range, filepath, dpi):
     stats = (f"In ±{ANTENNA_HCONE:.0f}° band: {in_band:.0f}%\n"
              f"Min: {ang.min():.1f}°   Max: {ang.max():.1f}°\n"
              f"Mean: {ang.mean():.1f}°")
-    ax1.text(0.985, 0.97, stats, transform=ax1.transAxes,
+    ax1.text(0.75, 0.97, stats, transform=ax1.transAxes,
              fontsize=8, va="top", ha="right", family="monospace",
              bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
                        edgecolor="#CBD5E1", alpha=0.93))
@@ -323,7 +323,7 @@ def plot_close(data, x_range, filepath, dpi):
     # Count feasible windows
     n_win = np.sum(~np.isnan(ttc_min))
     n_ok  = np.sum(ttc_min <= WINDOW_DUR_MIN)
-    ax2.text(0.985, 0.95,
+    ax2.text(0.75, 0.95,
              f"{n_ok}/{n_win} windows ({n_ok/n_win*100:.0f}%) have\n"
              f"90° within {WINDOW_DUR_MIN:.0f} min",
              transform=ax2.transAxes, fontsize=8.5, va="top", ha="right",
@@ -366,7 +366,7 @@ def parse_args():
                    help="Mat data directory (geometry is mode-independent)")
     p.add_argument("--output-far",   default="fig1a_earth_target_far.png")
     p.add_argument("--output-close", default="fig1b_earth_target_close.png")
-    p.add_argument("--dpi", type=int, default=180)
+    p.add_argument("--dpi", type=int, default=360)
     return p.parse_args()
 
 
