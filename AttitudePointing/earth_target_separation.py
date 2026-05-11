@@ -14,6 +14,11 @@ Produces two figures:
 
 Usage:
     python earth_target_separation.py --mat-dir end1_target_sunOpt
+
+
+For the range -60km to -5km I would simply be always target pointing + Sun Optimization. The antenna pointing comes for free since the Sun direction is alwyas quite close to the Radial-Tangential plane, therefore the solar panel spin axis can be kept perpendicular to that plane and we would be still capable to point the Antenna to the Earth. 
+
+I would exploit mode 3 only from -5km to 1km if necessary
 """
 
 import argparse
