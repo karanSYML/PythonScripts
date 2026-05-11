@@ -193,6 +193,89 @@ def _add_maneuvers(ax, man_rcs, man_pps, lo, hi):
 
 # ── Figure generation ─────────────────────────────────────────────────────────
 
+def generate_slew_comparison_figure(
+        m1, slew_m1, slew_m2, far_range, close_range,
+        filepath, dpi):
+    """Side-by-side slew-only figure for the 'Optimal Slew' document section."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import matplotlib.gridspec as gridspec
+
+    txt = "#334155"
+    fig = plt.figure(figsize=(18, 8), constrained_layout=True)
+    fig.patch.set_facecolor("white")
+    fig.get_layout_engine().set(rect=(0, 0, 1, 0.93))
+    gs = gridspec.GridSpec(1, 2, figure=fig, wspace=0.10)
+
+    phases = [
+        ("Far Range  (−60 to −5 km)",  far_range),
+        ("Close Range  (−5 to +1 km)", close_range),
+    ]
+
+    for col, (label, (lo, hi)) in enumerate(phases):
+        ax = fig.add_subplot(gs[col])
+        _style_ax(ax)
+
+        mask = (m1["days"] >= lo) & (m1["days"] <= hi)
+        d  = m1["days"][mask]
+        s1 = slew_m1[mask]
+        s2 = slew_m2[mask]
+
+        ax.plot(d, s1, color="#2563EB", lw=0.75, alpha=0.9,
+                label=f"Mode 1 → Combined")
+        ax.plot(d, s2, color="#DC2626", lw=0.75, alpha=0.9,
+                label=f"Mode 2 → Combined")
+        ax.fill_between(d, s1, alpha=0.07, color="#2563EB")
+        ax.fill_between(d, s2, alpha=0.06, color="#DC2626")
+
+        m1_cheaper = np.sum(s1 < s2) / len(s1) * 100
+        stats = (
+            f"Mode 1 cheaper: {m1_cheaper:.0f}% of epochs\n"
+            f"M1: {s1.min():.0f}°–{s1.mean():.0f}°–{s1.max():.0f}°  (min·mean·max)\n"
+            f"M2: {s2.min():.0f}°–{s2.mean():.0f}°–{s2.max():.0f}°"
+        )
+        ax.text(0.015, 0.975, stats,
+                transform=ax.transAxes, fontsize=8.5, va="top",
+                family="monospace",
+                bbox=dict(boxstyle="round,pad=0.35", facecolor="white",
+                          edgecolor="#CBD5E1", alpha=0.93))
+
+        _add_maneuvers(ax, m1["man_rcs"], m1["man_pps"], lo, hi)
+
+        ax.set_xlim(lo, hi)
+        ax.set_ylim(0, 185)
+        ax.set_xlabel("Mission elapsed time [days]", fontsize=10, color=txt)
+        ax.set_title(label, fontsize=11, color=txt, fontweight="semibold", pad=8)
+        if col == 0:
+            ax.set_ylabel("Eigenaxis slew to combined attitude [deg]",
+                          fontsize=10, color=txt, fontweight="medium")
+            ax.legend(fontsize=9, framealpha=0.9, loc="upper right",
+                      edgecolor="#E2E8F0")
+        else:
+            ax.set_yticklabels([])
+
+    # shared legend proxy for maneuver lines
+    from matplotlib.lines import Line2D
+    proxies = [
+        Line2D([0], [0], color="#3B82F6", lw=0.9, ls=":", label="RCS manoeuvre"),
+        Line2D([0], [0], color="#F97316", lw=0.9, ls="--", label="PPS manoeuvre"),
+    ]
+    fig.legend(handles=proxies, fontsize=8, framealpha=0.9,
+               edgecolor="#E2E8F0", loc="lower right",
+               bbox_to_anchor=(0.99, 0.02))
+
+    fig.suptitle(
+        "Optimal Slew — Mode 1 (Target+Sun) vs Mode 2 (Nadir+Sun) → Combined Earth+Target attitude",
+        fontsize=13, color=txt, fontweight="bold", y=0.99)
+
+    plt.savefig(filepath, dpi=dpi, bbox_inches="tight",
+                facecolor="white", edgecolor="none")
+    plt.close()
+    print(f"  Saved: {filepath}")
+
+
+
 def generate_figure(days, ang, slew_m1, slew_m2, ant_err, dlambda,
                     man_rcs, man_pps, x_range, phase_label, filepath, dpi):
     import matplotlib
@@ -310,8 +393,9 @@ def parse_args():
     p = argparse.ArgumentParser(description="Slew analysis: Mode 1 vs Mode 2")
     p.add_argument("--mode1-dir", default="og3_target_sunOpt_nominal")
     p.add_argument("--mode2-dir", default="og3_Nadir_sunOpt_nominal")
-    p.add_argument("--output-far",   default="slew_far.png")
-    p.add_argument("--output-close", default="slew_close.png")
+    p.add_argument("--output-far",         default="slew_far.png")
+    p.add_argument("--output-close",       default="slew_close.png")
+    p.add_argument("--output-comparison",  default="")
     p.add_argument("--dpi", type=int, default=180)
     return p.parse_args()
 
@@ -359,6 +443,12 @@ def main():
                     m1["dlambda"], m1["man_rcs"], m1["man_pps"],
                     close_range, "Close Range (−5 to +1 km)",
                     args.output_close, args.dpi)
+
+    print("Generating slew comparison figure...")
+    slew_out = args.output_comparison or args.output_far.replace("_far", "_comparison")
+    generate_slew_comparison_figure(
+        m1, slew_m1, slew_m2, far_range, close_range,
+        slew_out, args.dpi)
 
     print("\nDone.")
 

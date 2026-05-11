@@ -21,3 +21,4 @@ refprop/REFPROP-cmake
 **/plumePipeline/
 **/openplume_cases/
 **/feasibility_map_spec.md
+*.STEP

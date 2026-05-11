@@ -2,24 +2,36 @@
 """
 extract_firings_to_csv.py
 =========================
-Builds a combined time-series CSV (RDV + INS) and in-fills firing data from
-the .mat maneuvers struct into the rows whose timestamps are nearest to each
-firing epoch.  All firing columns default to 0 for non-firing rows.
+Builds a combined time-series CSV (RDV + INS) directly from the .mat files in
+each input folder, then in-fills firing data from the maneuvers struct into
+the rows whose timestamps are nearest to each firing epoch.
 
-Nearest-neighbour matching: every firing event maps to the closest 300-s grid
-point (worst-case residual 148.9 s, well inside the 150-s half-step limit).
+Time-series UTC_ISOC is reconstructed from the per-file mission anchor:
+    t0_TT_J2000_s = manEphSec - manTime_hr*3600   (constant within a file)
+    t0_UTC_J2000_s = t0_TT_J2000_s - 69.184       (TT->UTC, valid for 2028)
+    row i timestamp = t0_UTC + i*300 s
+
+Firing events use the same -69.184 s correction so nearest-neighbour matching
+collapses to pure 300-s grid quantization (worst-case residual <150 s).
 
 Output files
 ------------
   end1_target_sunOpt.csv   —  Mode 1 (Target+Sun)
   end1_nadir_sunopt.csv    —  Mode 2 (Nadir+Sun)
 
-New columns added to the existing 28
--------------------------------------
-  maneuver_type       : "RCS", "PPS", "RCS+PPS", or "" (no event)
+Columns
+-------
+Time-series (28):
+  UTC_ISOC, pos_Earth2satCoG_ECI_m_{x,y,z}, vel_Earth2satCoG_ECI_ms_{x,y,z},
+  pos_Earth2tgtCoG_ECI_m_{x,y,z}, pos_Earth2Sun_ECI_m_{x,y,z},
+  quat_ECI2MRF_{a,i,j,k}, angle_SunPhaseAngle_rad, uv_sat2Earth_MRF_{x,y,z},
+  uv_sat2Target_MRF_{x,y,z}, angle_sunFromMRFaxes_deg_{x,y,z}, a_dlambda_m
+
+Firing in-fill (variable):
+  maneuver_type       : 0 = none, 1 = PPS, 2 = RCS
   manTime_hr          : mission-elapsed hours of the firing (0 if none)
-  firingTime_rcs_T01 … firingTime_rcs_T16  : per-thruster RCS firing [s]
-  firingTime_pps_1   … firingTime_pps_3    : PPS firing values
+  firingTime_rcs_T01 … firingTime_rcs_TNN
+  firingTime_pps_1   … firingTime_pps_M
 """
 
 import os
@@ -28,17 +40,90 @@ import pandas as pd
 import scipy.io
 from datetime import datetime, timezone, timedelta
 
-J2000 = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+J2000        = datetime(2000, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+TT_MINUS_UTC = 69.184      # seconds, valid through 2028 (no leap second)
+DT_S         = 300.0       # propagation step
+
+VEC3_FIELDS = [
+    "pos_Earth2satCoG_ECI_m",
+    "vel_Earth2satCoG_ECI_ms",
+    "pos_Earth2tgtCoG_ECI_m",
+    "pos_Earth2Sun_ECI_m",
+    "uv_sat2Earth_MRF",
+    "uv_sat2Target_MRF",
+    "angle_sunFromMRFaxes_deg",
+]
+VEC3_SUFFIX  = ["x", "y", "z"]
+QUAT_SUFFIX  = ["a", "i", "j", "k"]
+SCALAR_FIELDS = ["angle_SunPhaseAngle_rad", "a_dlambda_m"]
 
 
 def j2000_to_utc(sec_j2000):
     return J2000 + timedelta(seconds=float(sec_j2000))
 
 
+def load_phase(mat_path):
+    """Return (df_phase, t0_utc_j2000_s, n_rcs, n_pps) for a single .mat file."""
+    mat  = scipy.io.loadmat(mat_path)
+    data = mat["data4thermal"][0, 0]
+    man  = data["maneuvers"][0, 0]
+
+    # Mission anchor from any maneuver event (consistent across all events)
+    if man["manEphSec_pps"].size > 0:
+        eph0 = float(man["manEphSec_pps"].flatten()[0])
+        mt0  = float(man["manTime_hr_pps"].flatten()[0])
+    else:
+        eph0 = float(man["manEphSec_rcs"].flatten()[0])
+        mt0  = float(man["manTime_hr_rcs"].flatten()[0])
+    t0_tt  = eph0 - mt0 * 3600.0
+    t0_utc = t0_tt - TT_MINUS_UTC
+
+    n = data["pos_Earth2satCoG_ECI_m"].shape[1]
+
+    # Build column dict
+    cols = {}
+    times = [j2000_to_utc(t0_utc + i * DT_S) for i in range(n)]
+    cols["UTC_ISOC"] = [t.strftime("%Y-%m-%dT%H:%M:%S.") + f"{t.microsecond * 1000:09d}"
+                        for t in times]
+
+    for f in VEC3_FIELDS:
+        arr = data[f]
+        for k, suf in enumerate(VEC3_SUFFIX):
+            cols[f"{f}_{suf}"] = arr[k, :]
+
+    quat = data["quat_ECI2MRF"]
+    for k, suf in enumerate(QUAT_SUFFIX):
+        cols[f"quat_ECI2MRF_{suf}"] = quat[k, :]
+
+    for f in SCALAR_FIELDS:
+        cols[f] = data[f].flatten()
+
+    df = pd.DataFrame(cols)
+
+    # Reorder to match the legacy CSV column order
+    order = (
+        ["UTC_ISOC"]
+        + [f"pos_Earth2satCoG_ECI_m_{s}"  for s in VEC3_SUFFIX]
+        + [f"vel_Earth2satCoG_ECI_ms_{s}" for s in VEC3_SUFFIX]
+        + [f"pos_Earth2tgtCoG_ECI_m_{s}"  for s in VEC3_SUFFIX]
+        + [f"pos_Earth2Sun_ECI_m_{s}"     for s in VEC3_SUFFIX]
+        + [f"quat_ECI2MRF_{s}"            for s in QUAT_SUFFIX]
+        + ["angle_SunPhaseAngle_rad"]
+        + [f"uv_sat2Earth_MRF_{s}"        for s in VEC3_SUFFIX]
+        + [f"uv_sat2Target_MRF_{s}"       for s in VEC3_SUFFIX]
+        + [f"angle_sunFromMRFaxes_deg_{s}" for s in VEC3_SUFFIX]
+        + ["a_dlambda_m"]
+    )
+    df = df[order]
+
+    n_rcs = man["firingTime_rcs"].shape[0]
+    n_pps = man["firingTime_pps"].shape[0] if man["firingTime_pps"].size > 0 else 0
+    return df, t0_utc, n_rcs, n_pps
+
+
 def detect_sizes(mat_dir):
-    """Read the RDV mat file to determine thruster channel counts."""
-    fp  = os.path.join(mat_dir, "dataPackage4Thermal_RDV.mat")
-    mat = scipy.io.loadmat(fp)
+    fp_rdv = os.path.join(mat_dir, "dataPackage4Thermal_RDV.mat")
+    mat = scipy.io.loadmat(fp_rdv)
     man = mat["data4thermal"][0, 0]["maneuvers"][0, 0]
     n_rcs = man["firingTime_rcs"].shape[0]
     n_pps = man["firingTime_pps"].shape[0] if man["firingTime_pps"].size > 0 else 0
@@ -46,21 +131,17 @@ def detect_sizes(mat_dir):
 
 
 def load_timeseries(mat_dir, rcs_cols, pps_cols):
-    """Concatenate RDV + INS CSVs and parse UTC timestamps."""
-    rdv = pd.read_csv(os.path.join(mat_dir, "dataPackage4Thermal_RDV.csv"),
-                      skipinitialspace=True)
-    ins = pd.read_csv(os.path.join(mat_dir, "dataPackage4Thermal_INS.csv"),
-                      skipinitialspace=True)
-    df = pd.concat([rdv, ins], ignore_index=True)
+    """Read time-series from RDV + INS .mat files, concatenate, init firing cols."""
+    rdv_df, _, _, _ = load_phase(os.path.join(mat_dir, "dataPackage4Thermal_RDV.mat"))
+    ins_df, _, _, _ = load_phase(os.path.join(mat_dir, "dataPackage4Thermal_INS.mat"))
+    df = pd.concat([rdv_df, ins_df], ignore_index=True)
 
-    # Initialise firing columns
     df["maneuver_type"] = 0
     df["manTime_hr"]    = 0.0
     for col in rcs_cols + pps_cols:
         df[col] = 0.0
 
-    # Parse timestamps for nearest-neighbour lookup
-    df["_utc"] = pd.to_datetime(df["UTC_ISOC"].str.strip(), utc=True)
+    df["_utc"] = pd.to_datetime(df["UTC_ISOC"], utc=True)
     return df
 
 
@@ -68,9 +149,8 @@ def load_firing_events(mat_dir):
     """
     Extract all RCS and PPS firing events from RDV + INS .mat files.
 
-    Returns two lists of dicts:
-      rcs_events: [{utc, manTime_hr, firingTimes (n_rcs array)}, ...]
-      pps_events: [{utc, manTime_hr, firingTimes (n_pps array)}, ...]
+    Maneuver epochs are TT-J2000 seconds; subtract TT_MINUS_UTC so they sit on
+    the same UTC clock as the reconstructed time-series timestamps.
     """
     rcs_events, pps_events = [], []
     for phase in ["RDV", "INS"]:
@@ -84,8 +164,8 @@ def load_firing_events(mat_dir):
         mth  = man["manTime_hr_rcs"].flatten()
         for i, (ep, mt) in enumerate(zip(ephs, mth)):
             rcs_events.append({
-                "utc":        j2000_to_utc(ep),
-                "manTime_hr": float(mt),
+                "utc":         j2000_to_utc(float(ep) - TT_MINUS_UTC),
+                "manTime_hr":  float(mt),
                 "firingTimes": ft[:, i].astype(float),
             })
 
@@ -96,8 +176,8 @@ def load_firing_events(mat_dir):
             mth  = man["manTime_hr_pps"].flatten()
             for i, (ep, mt) in enumerate(zip(ephs, mth)):
                 pps_events.append({
-                    "utc":        j2000_to_utc(ep),
-                    "manTime_hr": float(mt),
+                    "utc":         j2000_to_utc(float(ep) - TT_MINUS_UTC),
+                    "manTime_hr":  float(mt),
                     "firingTimes": ft[:, i].astype(float),
                 })
 
@@ -105,7 +185,6 @@ def load_firing_events(mat_dir):
 
 
 def nearest_row(df_utc_series, target_utc):
-    """Return the DataFrame index of the row whose _utc is closest to target_utc."""
     diffs = (df_utc_series - target_utc).abs()
     return diffs.idxmin()
 
