@@ -1,0 +1,85 @@
+{
+  "baselines": {
+    "019cd752-4e5d-7e65-8b83-ab90de113185": {
+      "value": "TBC",
+      "name": "peak_power_consumption",
+      "first_accessed_at": 1778577575.3926938,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5182-7cf1-b9cf-7f1e26845472": {
+      "value": 365.0,
+      "name": "average_power_consumption_min",
+      "first_accessed_at": 1778577575.8132715,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5090-7f53-b1dd-311099f2e7e4": {
+      "value": 380.0,
+      "name": "average_power_consumption_max",
+      "first_accessed_at": 1778577576.2416217,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    }
+  },
+  "accessed_items": {
+    "og3.og003_technical_data": {
+      "name": "og003_technical_data",
+      "item_id": "019acae1-ca80-7ef6-b13a-b4f9034069e5",
+      "first_accessed_at": 1778570301.2814908
+    },
+    "og3.og003_technical_data.v6.system": {
+      "name": "system",
+      "item_id": "019cd752-4d21-792a-9e03-66bd5812151c",
+      "first_accessed_at": 1778576098.8937502
+    },
+    "og3.og003_technical_data.v6.system.power": {
+      "name": "power",
+      "item_id": "019cd752-4d50-7e5b-b242-0a4259b3c4b9",
+      "first_accessed_at": 1778576099.3390377
+    },
+    "og3.og003_technical_data.v6.system.power.solararray": {
+      "name": "solararray",
+      "item_id": "019cd752-4d52-724d-8f20-5cf63232b1a2",
+      "first_accessed_at": 1778576099.7629657
+    },
+    "og3.og003_technical_data.v6.system.propulsion": {
+      "name": "propulsion",
+      "item_id": "019cd752-4d9a-72ea-9795-45c4344cd817",
+      "first_accessed_at": 1778576481.6132205
+    },
+    "og3.og003_technical_data.v6.system.power.batteries": {
+      "name": "batteries",
+      "item_id": "019cd752-4d5a-756d-86d7-8d31160a80ff",
+      "first_accessed_at": 1778576482.0445864
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps": {
+      "name": "pps",
+      "item_id": "019cd752-4d9c-72e4-b498-204b1d586a27",
+      "first_accessed_at": 1778576482.4785864
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.powerprocessingunit": {
+      "name": "powerprocessingunit",
+      "item_id": "019cd752-4da5-76dd-81f1-0350441d342e",
+      "first_accessed_at": 1778576482.9116442
+    }
+  },
+  "accessed_properties": {
+    "og3.og003_technical_data.v6.system.propulsion.pps.powerprocessingunit.peak_power_consumption": {
+      "name": "peak_power_consumption",
+      "property_id": "019cd752-4e5d-7e65-8b83-ab90de113185",
+      "first_accessed_at": 1778577575.3921878
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.powerprocessingunit.average_power_consumption_min": {
+      "name": "average_power_consumption_min",
+      "property_id": "019cd752-5182-7cf1-b9cf-7f1e26845472",
+      "first_accessed_at": 1778577575.8129563
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.powerprocessingunit.average_power_consumption_max": {
+      "name": "average_power_consumption_max",
+      "property_id": "019cd752-5090-7f53-b1dd-311099f2e7e4",
+      "first_accessed_at": 1778577576.2413273
+    }
+  },
+  "last_updated": 1778663915.341908
+}

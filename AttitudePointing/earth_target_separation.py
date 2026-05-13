@@ -38,7 +38,7 @@ T0_SEC   = (T0_UTC - J2000).total_seconds()
 CLOSE_KM       = -5.0   # along-track boundary far ↔ close
 ANTENNA_HCONE  = 4.5   # X-band half-cone angle [deg] — 9° full cone
 WINDOW_HRS     = 6.0    # ConOps window interval [h]
-WINDOW_DUR_MIN = 25.0   # ConOps window duration [min]
+WINDOW_DUR_MIN = 15.0   # ConOps window duration [min]
 
 
 # ── Data loading ──────────────────────────────────────────────────────────────
@@ -240,7 +240,13 @@ def plot_close(data, x_range, filepath, dpi):
     # ── 90° crossing analysis ────────────────────────────────────────────────
     crossings   = find_crossings_90(days, ang)
     win_starts  = np.arange(lo, hi, win_int)
-    ttc_min     = time_to_next_90(win_starts, crossings)
+
+    # Feasibility duration per window: cumulative minutes where |ang-90| ≤ ANTENNA_HCONE
+    dt_min = DT_DAYS * 1440.0   # 5 min per sample
+    feasible_dur = np.array([
+        np.sum(np.abs(ang[(days >= d0) & (days < d0 + win_int)] - 90.0) <= ANTENNA_HCONE) * dt_min
+        for d0 in win_starts
+    ])
 
     if crossings.size > 1:
         gaps_hr     = np.diff(crossings) * 24.0
@@ -297,41 +303,45 @@ def plot_close(data, x_range, filepath, dpi):
     ax1.set_ylim(0, 185)
     ax1.set_ylabel("Earth–Target\nangular sep. [deg]", fontsize=10,
                    color=txt, fontweight="medium")
-    ax1.legend(loc="lower right", fontsize=8, framealpha=0.9, edgecolor="#E2E8F0")
     _add_maneuvers(ax1, data["man_rcs"], data["man_pps"], lo, hi)
+    from matplotlib.lines import Line2D
+    extra = []
+    if data["man_rcs"][(data["man_rcs"] >= lo) & (data["man_rcs"] <= hi)].size > 0:
+        extra.append(Line2D([0], [0], color="#3B82F6", lw=0.7, ls=":", alpha=0.6,
+                            label="RCS manoeuvres"))
+    if data["man_pps"][(data["man_pps"] >= lo) & (data["man_pps"] <= hi)].size > 0:
+        extra.append(Line2D([0], [0], color="#F97316", lw=0.8, ls="--", alpha=0.7,
+                            label="PPS manoeuvres"))
+    handles, labels = ax1.get_legend_handles_labels()
+    ax1.legend(handles=handles + extra, loc="lower right", fontsize=8,
+               framealpha=0.9, edgecolor="#E2E8F0")
 
-    # ── Panel 2: time to next 90° crossing per 6-h window ───────────────────
+    # ── Panel 2: feasible geometry duration per 6-h window ──────────────────
     ax2 = axes[1]
-    # Cap at WINDOW_HRS * 60 — crossings beyond one full cycle shown as clipped
-    y_cap = WINDOW_HRS * 60.0
-    ttc_capped = np.minimum(ttc_min, y_cap)
-    clipped    = ttc_min > y_cap
-    colors = np.where(ttc_min <= WINDOW_DUR_MIN, "#059669", "#E11D48")
-    bars = ax2.bar(win_starts, ttc_capped, width=win_int * 0.7, align="edge",
-                   color=colors, alpha=0.75, zorder=2)
-    # Hatching for clipped bars (crossing beyond 6 h)
-    for bar, is_clipped in zip(bars, clipped):
-        if is_clipped:
-            bar.set_hatch("///")
-            bar.set_edgecolor("#94A3B8")
-    ax2.axhline(WINDOW_DUR_MIN, color="#E11D48", lw=1.4, ls="--",
-                label=f"Window duration ({WINDOW_DUR_MIN:.0f} min)")
+    colors = np.where(feasible_dur >= WINDOW_DUR_MIN, "#059669", "#E11D48")
+    ax2.bar(win_starts, feasible_dur, width=win_int * 0.7, align="edge",
+            color=colors, alpha=0.75, zorder=2)
+    ax2.fill_between([lo, hi], 0, WINDOW_DUR_MIN,
+                     alpha=0.07, color="#E11D48", zorder=0)
+    ax2.fill_between([lo, hi], WINDOW_DUR_MIN, WINDOW_HRS * 60.0,
+                     alpha=0.05, color="#059669", zorder=0)
+    ax2.axhline(WINDOW_DUR_MIN, color="#334155", lw=1.4, ls="--",
+                label=f"Required window duration ({WINDOW_DUR_MIN:.0f} min)")
     ax2.axhline(0, color="#334155", lw=0.4, alpha=0.5)
-    ax2.set_ylim(0, y_cap * 1.05)
-    ax2.set_ylabel(f"Time to 90° from\nwindow start [min]\n(capped at {y_cap:.0f} min)",
+    ax2.set_ylim(0, WINDOW_HRS * 60.0 * 0.55)
+    ax2.set_ylabel(f"Feasible geometry duration\nper 6-h window [min]\n(|ang − 90°| ≤ {ANTENNA_HCONE:.1f}°)",
                    fontsize=9, color=txt, fontweight="medium")
+    n_ok = np.sum(feasible_dur >= WINDOW_DUR_MIN)
+    n_win = len(win_starts)
     ax2.legend(fontsize=8, framealpha=0.9, loc="upper right", edgecolor="#E2E8F0")
     ax2.text(0.01, 0.95,
-             "Green = 90° within window  |  Red = outside slot  |  Hatched = no crossing within 6 h",
+             f"Green = ≥{WINDOW_DUR_MIN:.0f} min feasible (window fits)  |  Red = below budget",
              transform=ax2.transAxes, fontsize=8, color="#64748B",
              fontstyle="italic", va="top")
-    # Count feasible windows
-    n_win = np.sum(~np.isnan(ttc_min))
-    n_ok  = np.sum(ttc_min <= WINDOW_DUR_MIN)
-    ax2.text(0.75, 0.95,
+    ax2.text(0.985, 0.04,
              f"{n_ok}/{n_win} windows ({n_ok/n_win*100:.0f}%) have\n"
-             f"90° within {WINDOW_DUR_MIN:.0f} min",
-             transform=ax2.transAxes, fontsize=8.5, va="top", ha="right",
+             f"≥{WINDOW_DUR_MIN:.0f} min of feasible geometry",
+             transform=ax2.transAxes, fontsize=8.5, va="bottom", ha="right",
              family="monospace",
              bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
                        edgecolor="#CBD5E1", alpha=0.93))
@@ -351,7 +361,7 @@ def plot_close(data, x_range, filepath, dpi):
 
     fig.suptitle(
         "Earth–Target Angular Separation — Close Range (−5 to +1 km)\n"
-        "90° crossing periodicity  |  Time to feasible geometry per 6-h window",
+        "90° crossing periodicity  |  Feasible geometry duration per 6-h window",
         fontsize=13, color=txt, fontweight="bold", y=0.99, linespacing=1.4)
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])
@@ -360,7 +370,7 @@ def plot_close(data, x_range, filepath, dpi):
     plt.close()
     print(f"  Saved: {filepath}")
 
-    return crossings, max_gap_hr, ttc_min
+    return crossings, max_gap_hr, feasible_dur
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
@@ -405,12 +415,15 @@ def main():
     plot_far(data, far_range, args.output_far, args.dpi)
 
     print("Generating close-range figure...")
-    crossings, max_gap_hr, ttc = plot_close(data, close_range, args.output_close, args.dpi)
+    crossings, max_gap_hr, feas_dur = plot_close(data, close_range, args.output_close, args.dpi)
 
     print(f"\n  Close-range 90° crossings: {crossings.size}")
     if not np.isnan(max_gap_hr):
         print(f"  Max gap between crossings: {max_gap_hr:.1f} h "
               f"({'≤ 6 h ✓' if max_gap_hr <= 6 else '> 6 h ✗'})")
+    n_ok = np.sum(feas_dur >= WINDOW_DUR_MIN)
+    print(f"  Windows with ≥{WINDOW_DUR_MIN:.0f} min feasibility: {n_ok}/{len(feas_dur)} "
+          f"({n_ok/len(feas_dur)*100:.0f}%)")
 
     print("\nDone.")
 

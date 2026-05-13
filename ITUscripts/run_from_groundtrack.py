@@ -48,13 +48,13 @@ def run_with_groundtrack_mode2():
     # Example waypoints describing a small figure-8 centered on 1.5 deg E
     waypoints = [
         ( 0.05,  1.50),
-        ( 0.04,  1.52),
-        ( 0.00,  1.50),
-        (-0.04,  1.48),
-        (-0.05,  1.50),
-        (-0.04,  1.52),
-        ( 0.00,  1.50),
-        ( 0.04,  1.48),
+        ( 0.04,  1.513),
+        ( 0.00,  1.500),
+        (-0.04,  1.487),
+        (-0.05,  1.500),
+        (-0.04,  1.513),
+        ( 0.00,  1.500),
+        ( 0.04,  1.487),
     ]
     orbit_cfg = fit_groundtrack(waypoints, verbose=True)
 
@@ -76,5 +76,5 @@ def run_with_groundtrack_mode2():
 
 
 if __name__ == "__main__":
-    run_with_groundtrack_mode1()
-    # run_with_groundtrack_mode2()
+    # run_with_groundtrack_mode1()
+    run_with_groundtrack_mode2()
