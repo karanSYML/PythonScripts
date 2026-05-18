@@ -208,9 +208,7 @@ def propagate_and_export(
     rows = 0
     with output_csv.open("w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(
-            ["utc_iso", "x_m", "y_m", "z_m", "vx_mps", "vy_mps", "vz_mps"]
-        )
+        writer.writerow(["x_m", "y_m", "z_m", "utcDate"])
 
         for k in range(n_steps):
             t = start.shiftedBy(float(k * step_s))
@@ -221,13 +219,9 @@ def propagate_and_export(
             # Transform PV from propagation frame (GCRF) to ITRF
             pv_itrf = state.getPVCoordinates(itrf)
             p = pv_itrf.getPosition()
-            v = pv_itrf.getVelocity()
 
             ts = absolutedate_to_datetime(t).isoformat(timespec="milliseconds")
-            writer.writerow(
-                [ts, p.getX(), p.getY(), p.getZ(),
-                 v.getX(), v.getY(), v.getZ()]
-            )
+            writer.writerow([p.getX(), p.getY(), p.getZ(), ts])
             rows += 1
 
             if t.equals(end):
@@ -260,8 +254,8 @@ def main():
     )
 
     prop_cfg = PropagationConfig(
-        start_utc="2028-09-01T00:00:00.000",
-        end_utc="2028-09-02T00:00:00.000",
+        start_utc="2025-01-01T00:00:00.000",
+        end_utc="2025-01-03T00:00:00.000",
         step_s=60.0,
         gravity_degree=4,
         gravity_order=4,

@@ -25,6 +25,7 @@ import warnings
 import numpy as np
 import scipy.io
 from datetime import datetime, timezone
+from rdv_phases import shade_phases
 
 warnings.filterwarnings("ignore")
 
@@ -38,8 +39,11 @@ T0_SEC  = (T0_UTC - J2000).total_seconds()
 CAM_AXIS = 2   # camera boresight +Z
 STR_AXIS = 0   # STR boresight +X (TBC)
 
-CAMERA_EXCL_DEG = 30.0   # half-cone exclusion (TBC)
-STR_EXCL_DEG    = 35.0   # GEO typical half-cone exclusion (TBC)
+CAMERA_EXCL_DEG  = 30.0   # half-cone exclusion (TBC)
+STR_EXCL_DEG     = 35.0   # GEO typical half-cone exclusion (TBC)
+SPEC_EXCL_DEG    = 3.75   # Triscape100 sun exclusion half-cone
+SPEC_MAX_MIN     = 5.0    # maximum allowed continuous exposure (min)
+DT_SEC           = 300.0  # timestep in seconds
 
 CLOSE_KM = -5.0   # along-track boundary far ↔ close range
 
@@ -124,6 +128,20 @@ def _violation_stats(ang_arr, threshold):
     return pct, ang_arr.min()
 
 
+def _consecutive_runs(mask):
+    """Return list of (start_idx, end_idx, length) for each True run in mask."""
+    runs = []
+    in_run = False
+    for i, v in enumerate(mask):
+        if v and not in_run:
+            start = i; in_run = True
+        elif not v and in_run:
+            runs.append((start, i - 1, i - start)); in_run = False
+    if in_run:
+        runs.append((start, len(mask) - 1, len(mask) - start))
+    return runs
+
+
 def generate_figure(m1, m2, x_range, phase_label, filepath, dpi):
     """
     Two-panel figure: camera sun angle (top) + STR sun angle (bottom).
@@ -146,8 +164,8 @@ def generate_figure(m1, m2, x_range, phase_label, filepath, dpi):
     str1 = m1["sun_deg"][mask1, STR_AXIS]
     str2 = m2["sun_deg"][mask2, STR_AXIS]
 
-    fig, axes = plt.subplots(2, 1, figsize=(15, 9),
-                             gridspec_kw={"height_ratios": [1, 1], "hspace": 0.12})
+    fig, axes = plt.subplots(3, 1, figsize=(15, 13),
+                             gridspec_kw={"height_ratios": [1, 1, 1], "hspace": 0.12})
     fig.patch.set_facecolor("white")
 
     for ax in axes:
@@ -175,6 +193,7 @@ def generate_figure(m1, m2, x_range, phase_label, filepath, dpi):
     ax1.set_ylabel("Sun angle from\ncamera (+Z) [deg]", fontsize=10,
                    color=txt, fontweight="medium")
     ax1.legend(fontsize=8, framealpha=0.9, loc="upper right", edgecolor="#E2E8F0")
+    shade_phases(ax1, lo, hi)
     _add_maneuvers(ax1, m1["man_rcs"], m1["man_pps"], x_range)
 
     p1_m1, min1_m1 = _violation_stats(cam1, CAMERA_EXCL_DEG)
@@ -186,35 +205,98 @@ def generate_figure(m1, m2, x_range, phase_label, filepath, dpi):
              bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
                        edgecolor="#CBD5E1", alpha=0.9))
 
-    # ── Panel 2: STR sun angle ──────────────────────────────────────────────
+    # ── Panel 2: SPEC_CAM (Triscape100) sun angle ──────────────────────────
     ax2 = axes[1]
-    ax2.plot(d1, str1, color="#7C3AED", lw=0.7, alpha=0.9, label="Mode 1 (Target+Sun)")
-    ax2.plot(d2, str2, color="#0EA5E9", lw=0.7, alpha=0.9, label="Mode 2 (Nadir+Sun)")
-    ax2.axhline(STR_EXCL_DEG, color="#DC2626", lw=1.4, ls="--",
-                label=f"STR exclusion {STR_EXCL_DEG:.0f}° (TBC – GEO)")
-    ax2.fill_between(d1, 0, STR_EXCL_DEG, alpha=0.08, color="#DC2626")
+    spec1 = m1["sun_deg"][mask1, CAM_AXIS]   # co-boresighted with NAC (+Z)
+    spec2 = m2["sun_deg"][mask2, CAM_AXIS]
 
-    ax2.fill_between(d1, str1, STR_EXCL_DEG,
+    ax2.plot(d1, spec1, color="#7C3AED", lw=0.7, alpha=0.9, label="Mode 1 (Target+Sun)")
+    ax2.plot(d2, spec2, color="#0EA5E9", lw=0.7, alpha=0.9, label="Mode 2 (Nadir+Sun)")
+    ax2.axhline(SPEC_EXCL_DEG, color="#DC2626", lw=1.4, ls="--",
+                label=f"SPEC_CAM exclusion {SPEC_EXCL_DEG}°")
+    ax2.fill_between(d1, 0, SPEC_EXCL_DEG, alpha=0.08, color="#DC2626")
+
+    # Single-epoch violations (amber) and multi-epoch >5 min (red) for Mode 1
+    epochs_per_min = 1.0 / (DT_SEC / 60.0)
+    max_single = int(np.ceil(SPEC_MAX_MIN * epochs_per_min))  # = 1 at 300 s
+
+    for mode_ang, mode_days, col_single, col_multi in [
+        (spec1, d1, "#F59E0B", "#EF4444"),
+        (spec2, d2, "#67E8F9", "#0284C7"),
+    ]:
+        viol_mask = mode_ang < SPEC_EXCL_DEG
+        runs = _consecutive_runs(viol_mask)
+        for s, e, length in runs:
+            t0, t1 = mode_days[s], mode_days[e]
+            color = col_multi if length > max_single else col_single
+            ax2.axvspan(t0 - DT_DAYS / 2, t1 + DT_DAYS / 2,
+                        alpha=0.45, color=color, zorder=2)
+
+    # Stats: violation %, longest run, number of >5-min events
+    def _spec_stats(ang, days):
+        viol = ang < SPEC_EXCL_DEG
+        pct  = viol.sum() / len(viol) * 100
+        runs = _consecutive_runs(viol)
+        max_run_min = max((r[2] * DT_SEC / 60 for r in runs), default=0)
+        n_over5 = sum(1 for r in runs if r[2] * DT_SEC / 60 > SPEC_MAX_MIN)
+        return pct, max_run_min, n_over5
+
+    p_s1, max1, n1 = _spec_stats(spec1, d1)
+    p_s2, max2, n2 = _spec_stats(spec2, d2)
+    note_s = (f"Mode 1: {p_s1:.2f}% viol  |  longest run {max1:.0f} min  |  "
+              f"events >{SPEC_MAX_MIN:.0f} min: {n1}\n"
+              f"Mode 2: {p_s2:.2f}% viol  |  longest run {max2:.0f} min  |  "
+              f"events >{SPEC_MAX_MIN:.0f} min: {n2}")
+    ax2.text(0.01, 0.97, note_s, transform=ax2.transAxes,
+             fontsize=8, color=txt, va="top", family="monospace",
+             bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
+                       edgecolor="#CBD5E1", alpha=0.9))
+
+    from matplotlib.patches import Patch
+    spec_legend_extras = [
+        Patch(color="#F59E0B", alpha=0.6, label="M1: ≤5 min exposure"),
+        Patch(color="#EF4444", alpha=0.6, label="M1: >5 min exposure"),
+        Patch(color="#67E8F9", alpha=0.6, label="M2: ≤5 min exposure"),
+        Patch(color="#0284C7", alpha=0.6, label="M2: >5 min exposure"),
+    ]
+    ax2.set_ylim(0, max(spec1.max(), spec2.max()) * 1.1 + 2)
+    ax2.set_ylabel(f"Sun angle from\nSPEC_CAM (+Z) [deg]", fontsize=10,
+                   color=txt, fontweight="medium")
+    ax2.legend(handles=ax2.get_legend_handles_labels()[0][:2] + spec_legend_extras,
+               fontsize=7.5, framealpha=0.9, loc="upper right", edgecolor="#E2E8F0", ncol=2)
+    shade_phases(ax2, lo, hi)
+    _add_maneuvers(ax2, m1["man_rcs"], m1["man_pps"], x_range)
+
+    # ── Panel 3: STR sun angle ──────────────────────────────────────────────
+    ax3 = axes[2]
+    ax3.plot(d1, str1, color="#7C3AED", lw=0.7, alpha=0.9, label="Mode 1 (Target+Sun)")
+    ax3.plot(d2, str2, color="#0EA5E9", lw=0.7, alpha=0.9, label="Mode 2 (Nadir+Sun)")
+    ax3.axhline(STR_EXCL_DEG, color="#DC2626", lw=1.4, ls="--",
+                label=f"STR exclusion {STR_EXCL_DEG:.0f}° (TBC – GEO)")
+    ax3.fill_between(d1, 0, STR_EXCL_DEG, alpha=0.08, color="#DC2626")
+
+    ax3.fill_between(d1, str1, STR_EXCL_DEG,
                      where=(str1 < STR_EXCL_DEG),
                      alpha=0.25, color="#7C3AED",
                      label="Mode 1 violation")
-    ax2.fill_between(d2, str2, STR_EXCL_DEG,
+    ax3.fill_between(d2, str2, STR_EXCL_DEG,
                      where=(str2 < STR_EXCL_DEG),
                      alpha=0.25, color="#0EA5E9",
                      label="Mode 2 violation")
 
-    ax2.set_ylim(0, 185)
-    ax2.set_ylabel("Sun angle from\nSTR (+X, TBC) [deg]", fontsize=10,
+    ax3.set_ylim(0, 185)
+    ax3.set_ylabel("Sun angle from\nSTR (+X, TBC) [deg]", fontsize=10,
                    color=txt, fontweight="medium")
-    ax2.set_xlabel("Mission elapsed time [days]", fontsize=10, color=txt)
-    ax2.legend(fontsize=8, framealpha=0.9, loc="upper right", edgecolor="#E2E8F0")
-    _add_maneuvers(ax2, m1["man_rcs"], m1["man_pps"], x_range)
+    ax3.set_xlabel("Mission elapsed time [days]", fontsize=10, color=txt)
+    ax3.legend(fontsize=8, framealpha=0.9, loc="upper right", edgecolor="#E2E8F0")
+    shade_phases(ax3, lo, hi, label_y=0.015, label_va="bottom")
+    _add_maneuvers(ax3, m1["man_rcs"], m1["man_pps"], x_range)
 
     p2_m1, min2_m1 = _violation_stats(str1, STR_EXCL_DEG)
     p2_m2, min2_m2 = _violation_stats(str2, STR_EXCL_DEG)
     note2 = (f"Mode 1 violation: {p2_m1:.1f}%  (min {min2_m1:.1f}°)\n"
              f"Mode 2 violation: {p2_m2:.1f}%  (min {min2_m2:.1f}°)")
-    ax2.text(0.01, 0.97, note2, transform=ax2.transAxes,
+    ax3.text(0.01, 0.97, note2, transform=ax3.transAxes,
              fontsize=8, color=txt, va="top", family="monospace",
              bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
                        edgecolor="#CBD5E1", alpha=0.9))
@@ -234,8 +316,10 @@ def generate_figure(m1, m2, x_range, phase_label, filepath, dpi):
 
     fig.suptitle(
         f"Thermal Constraints — {phase_label}\n"
-        "Camera sun exclusion (+Z, 30° TBC)  |  STR blinding (+X TBC, 35° TBC)",
-        fontsize=13, color=txt, fontweight="bold", y=0.99, linespacing=1.4)
+        f"Camera exclusion (+Z, {CAMERA_EXCL_DEG:.0f}° TBC)  |  "
+        f"SPEC_CAM Triscape100 (+Z, {SPEC_EXCL_DEG}°, max {SPEC_MAX_MIN:.0f} min)  |  "
+        f"STR blinding (+X TBC, {STR_EXCL_DEG:.0f}° TBC)",
+        fontsize=11, color=txt, fontweight="bold", y=0.99, linespacing=1.4)
 
     plt.tight_layout(rect=[0, 0, 1, 0.95])
     plt.savefig(filepath, dpi=dpi, bbox_inches="tight",
@@ -263,7 +347,9 @@ def main():
 
     print(f"\n{'='*60}")
     print("  Thermal Constraints Analysis")
-    print(f"  Camera exclusion: {CAMERA_EXCL_DEG}°  |  STR exclusion: {STR_EXCL_DEG}°")
+    print(f"  Camera exclusion: {CAMERA_EXCL_DEG}°  |  "
+          f"SPEC_CAM: {SPEC_EXCL_DEG}° (max {SPEC_MAX_MIN:.0f} min)  |  "
+          f"STR: {STR_EXCL_DEG}°")
     print(f"{'='*60}")
 
     print("\nLoading Mode 1 (Target+Sun)...")
@@ -295,7 +381,13 @@ def main():
         st  = m["sun_deg"][mask, STR_AXIS]
         pc_cam, _ = _violation_stats(cam, CAMERA_EXCL_DEG)
         pc_str, _ = _violation_stats(st, STR_EXCL_DEG)
-        print(f"  {label}: camera viol {pc_cam:5.1f}%  STR viol {pc_str:5.1f}%")
+        pc_spec, _ = _violation_stats(cam, SPEC_EXCL_DEG)
+        spec_runs = _consecutive_runs(cam < SPEC_EXCL_DEG)
+        n_over5 = sum(1 for r in spec_runs if r[2] * DT_SEC / 60 > SPEC_MAX_MIN)
+        max_run  = max((r[2] * DT_SEC / 60 for r in spec_runs), default=0)
+        print(f"  {label}: Camera {pc_cam:5.1f}%  "
+              f"SPEC_CAM {pc_spec:.2f}% (>{SPEC_MAX_MIN:.0f}min events: {n_over5}, "
+              f"longest: {max_run:.0f} min)  STR {pc_str:5.1f}%")
 
     print("\nGenerating figures...")
     generate_figure(m1, m2, far_range,   "Far Range (−60 to −5 km)",

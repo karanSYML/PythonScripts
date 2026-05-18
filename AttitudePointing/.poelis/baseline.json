@@ -20,6 +20,446 @@
       "first_accessed_at": 1778577576.2416217,
       "updated_at": "2026-03-10T10:36:59.022719",
       "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4e7e-7f22-8fd8-11db1735fc63": {
+      "value": 17.2,
+      "name": "string_power_eol",
+      "first_accessed_at": 1778798945.9878018,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4ee2-7e92-8f37-4b61579696f4": {
+      "value": 260.0,
+      "name": "baseline_power_consumption",
+      "first_accessed_at": 1778798946.3915093,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5039-7d0d-a4c3-c14605c4782f": {
+      "value": 0.72,
+      "name": "max_duration_pps_on_inspection",
+      "first_accessed_at": 1778798946.831793,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5192-7ca9-989d-0a7b9540165e": {
+      "value": 2.0,
+      "name": "number_solar_panel_wings",
+      "first_accessed_at": 1778798947.2323208,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-51b2-76ac-bb03-35dcbcb33d80": {
+      "value": 9.0,
+      "name": "wing_mass",
+      "first_accessed_at": 1778798947.6280558,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-521f-7719-871a-cc4cc1b19dd2": {
+      "value": 3.0,
+      "name": "number_solar_panel_per_wing",
+      "first_accessed_at": 1778798948.018531,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5276-7032-89b4-179e6c627811": {
+      "value": 570.0,
+      "name": "baseline_pps_power_consumption",
+      "first_accessed_at": 1778798948.468662,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-544b-7772-809c-c0124a1535e2": {
+      "value": 164.0,
+      "name": "eclipse_power_consumption",
+      "first_accessed_at": 1778798948.8615787,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-54d9-765c-8e93-607cb820545d": {
+      "value": 0.98,
+      "name": "max_duration_pps_on_orbitraising",
+      "first_accessed_at": 1778798949.2805746,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-544d-7d38-adad-2eceacafb879": {
+      "value": 12.0,
+      "name": "duty_cycle_pps_inspection",
+      "first_accessed_at": 1778798949.683192,
+      "updated_at": "2026-03-12T14:37:02.041519",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-502e-7b36-88ed-92eefa31d456": {
+      "value": 17.0,
+      "name": "duty_cycle_pps_orbitraising",
+      "first_accessed_at": 1778798950.0997396,
+      "updated_at": "2026-03-12T14:37:26.367619",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4df5-707b-8f97-54490e2cc41e": {
+      "value": 51.6,
+      "name": "solar_channel_generation_eol",
+      "first_accessed_at": 1778798950.61198,
+      "updated_at": "2026-05-05T08:53:06.299130",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4fae-7511-8c25-75bd13d7b012": {
+      "value": 18.0,
+      "name": "total_mass",
+      "first_accessed_at": 1778798951.1310244,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5036-7bc0-9518-96b51adae7c4": {
+      "value": 17.2,
+      "name": "yoke_power_eol",
+      "first_accessed_at": 1778798952.209739,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5461-7da1-a6f2-5f01d5d8f72d": {
+      "value": 344.0,
+      "name": "total_solar_power",
+      "first_accessed_at": 1778798952.667382,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4fd3-7f50-8aaf-5ee3a9bac500": {
+      "value": [
+        [
+          -0.04,
+          18.37,
+          -1289.22
+        ]
+      ],
+      "name": "cog_coordinates",
+      "first_accessed_at": 1778798953.1807656,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4e37-7190-87cb-e13cb4861d23": {
+      "value": 55.0,
+      "name": "see_threshold",
+      "first_accessed_at": 1778798954.6891575,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4f40-7c67-ad67-845675dbd983": {
+      "value": 33.6,
+      "name": "battery_voltage_max",
+      "first_accessed_at": 1778798955.105455,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4f67-7af9-9b4a-50eb857caae3": {
+      "value": 4.0,
+      "name": "mass",
+      "first_accessed_at": 1778798955.5078394,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-500b-7fdb-b5fb-480939945632": {
+      "value": 30.0,
+      "name": "tid_threshold",
+      "first_accessed_at": 1778798955.9088397,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-515f-725d-9d6c-07f44c77f270": {
+      "value": 550.0,
+      "name": "battery_capacity",
+      "first_accessed_at": 1778798956.3034165,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-51ea-7f80-97f4-5be3d23540a0": {
+      "value": 20.0,
+      "name": "maximum_charge_rate",
+      "first_accessed_at": 1778798956.7153447,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5222-7cdb-a4e4-d3f793ebb22b": {
+      "value": 24.0,
+      "name": "battery_voltage_min",
+      "first_accessed_at": 1778798957.1212833,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-52e4-77ab-a76e-3e1bdb38a22f": {
+      "value": 40.0,
+      "name": "maximum_discharge_rate",
+      "first_accessed_at": 1778798957.5314872,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4e2f-75f4-8405-0c19d9b55452": {
+      "value": "4.2 kg",
+      "name": "mass_marged",
+      "first_accessed_at": 1778798957.922356,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-50ab-738d-b256-823819e24dd7": {
+      "value": "geometric center",
+      "name": "cog_coordinates",
+      "first_accessed_at": 1778798958.3270998,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4ec2-7bc2-804a-dfabd73622de": {
+      "value": 27.0,
+      "name": "sun_exclusion_angle",
+      "first_accessed_at": 1778799911.2306175,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4f47-7a6c-8659-c03d8fee742f": {
+      "value": 12.0,
+      "name": "nominal_electrical_potential",
+      "first_accessed_at": 1778799912.3505316,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4fb4-7a1d-a30d-d18c95b552c8": {
+      "value": -10.0,
+      "name": "min_operation_temperature_range",
+      "first_accessed_at": 1778799913.4133053,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4fd8-7067-b861-d60cdae88b23": {
+      "value": 1.452,
+      "name": "mass_max",
+      "first_accessed_at": 1778799914.338332,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5006-7cac-9de6-6a2babd13723": {
+      "value": 50.0,
+      "name": "max_operation_temperature_range",
+      "first_accessed_at": 1778799915.4429002,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-50d9-7341-9f42-200d7b7c59f8": {
+      "value": 43.0,
+      "name": "see_tolerance",
+      "first_accessed_at": 1778799916.4682398,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5180-7c19-bc71-deec9b68c41c": {
+      "value": 19.0,
+      "name": "minimum_depth_of_field",
+      "first_accessed_at": 1778799917.4935849,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5278-7e66-b264-fabff6f28d2c": {
+      "value": 12.0,
+      "name": "sensor_bit_depth",
+      "first_accessed_at": 1778799918.4126081,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5295-7836-b17a-88b789e45b98": {
+      "value": 6.5e-06,
+      "name": "pixel_size",
+      "first_accessed_at": 1778799919.2824569,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-52e6-71ce-a7d6-4446693cb9b0": {
+      "value": 8.0,
+      "name": "peak_power_consumption",
+      "first_accessed_at": 1778799920.2347927,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5356-7161-8ff0-77d4cfc47a0d": {
+      "value": 30.0,
+      "name": "tid_tolerance",
+      "first_accessed_at": 1778799921.1771827,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-537b-7e0d-9d36-0099f80f2ceb": {
+      "value": 1.3635,
+      "name": "mass_min",
+      "first_accessed_at": 1778799922.060297,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5389-7e57-bad8-1c7ad41219ce": {
+      "value": 21.7,
+      "name": "field_of_view",
+      "first_accessed_at": 1778799923.0212731,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-53c9-7789-bcb4-1e290238e1b5": {
+      "value": 5.0,
+      "name": "idle_power_consumption",
+      "first_accessed_at": 1778799923.9340138,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-54b1-7b3d-9b61-2b6cfa8a2c69": {
+      "value": 0.05,
+      "name": "focal_lenght",
+      "first_accessed_at": 1778799924.7996411,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4dee-7d47-bbc0-0d2e4be38f33": {
+      "value": 0.0065,
+      "name": "focal_length",
+      "first_accessed_at": 1778799926.4894037,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4df0-7b3b-a383-dbf85974dda2": {
+      "value": 43.0,
+      "name": "see_tolerance",
+      "first_accessed_at": 1778799927.3290992,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4e31-7459-bf8f-2018f1791961": {
+      "value": 111.0,
+      "name": "field_of_view_diagonal",
+      "first_accessed_at": 1778799928.1838152,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4ece-7e08-ba6d-d5a79ef5860d": {
+      "value": 12.0,
+      "name": "nominal_electrical_potential",
+      "first_accessed_at": 1778799929.1526246,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4f50-7573-8ff4-190a8415c40d": {
+      "value": 1.10664,
+      "name": "mass_min",
+      "first_accessed_at": 1778799930.0082119,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-51bb-7480-b6cf-9c1c6b51a69f": {
+      "value": 8.0,
+      "name": "peak_power_consumption",
+      "first_accessed_at": 1778799930.842356,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5225-7331-a8f7-38cf7f7f005f": {
+      "value": 30.0,
+      "name": "tid_tolerance",
+      "first_accessed_at": 1778799931.8206196,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-53d0-702b-8620-30fc9452c113": {
+      "value": 5.0,
+      "name": "idle_power_consumption",
+      "first_accessed_at": 1778799932.9502053,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5491-7c2d-aa51-71d7549a060c": {
+      "value": 1.166,
+      "name": "mass_max",
+      "first_accessed_at": 1778799933.875946,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5056-71db-9f9b-666c354924be": {
+      "value": "N/A",
+      "name": "sun_exclusion_angle",
+      "first_accessed_at": 1778799934.899747,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5212-77f5-a73a-728cc9a42714": {
+      "value": 1.58,
+      "name": "mass",
+      "first_accessed_at": 1778799936.8463483,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-52af-7b85-a81d-623a8a4fac58": {
+      "value": 2.22,
+      "name": "fov_across_track",
+      "first_accessed_at": 1778799937.8345249,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-53bd-7ca4-b45c-9e759d201807": {
+      "value": 1.66,
+      "name": "fov_along_track",
+      "first_accessed_at": 1778799938.7917383,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4fcb-714b-b70a-d674953e73d1": {
+      "value": 0.1395,
+      "name": "mass_min",
+      "first_accessed_at": 1778799940.7284982,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5420-7a20-bdee-93abd13acd7b": {
+      "value": 0.1705,
+      "name": "mass_max",
+      "first_accessed_at": 1778799941.6497755,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4f31-7797-a327-68c6d0e4131f": {
+      "value": 0.399,
+      "name": "mass_max",
+      "first_accessed_at": 1778799944.1149,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5455-77d8-a861-83569449a69e": {
+      "value": 0.38,
+      "name": "mass_min",
+      "first_accessed_at": 1778799945.131849,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5176-7cc2-86b0-23ea8f5ec2c2": {
+      "value": 0.07,
+      "name": "mass_max",
+      "first_accessed_at": 1778799946.9170196,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5449-76c5-8431-46e8de9e5b8b": {
+      "value": 0.067,
+      "name": "mass_min",
+      "first_accessed_at": 1778799947.9039173,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4f27-76e9-94b6-c5ef8a6526b5": {
+      "value": 0.085,
+      "name": "mass_max",
+      "first_accessed_at": 1778799949.633336,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5297-718e-ab1a-9d8907cb33ee": {
+      "value": 0.081,
+      "name": "mass_min",
+      "first_accessed_at": 1778799950.5580032,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
     }
   },
   "accessed_items": {
@@ -62,6 +502,46 @@
       "name": "powerprocessingunit",
       "item_id": "019cd752-4da5-76dd-81f1-0350441d342e",
       "first_accessed_at": 1778576482.9116442
+    },
+    "og3.og003_technical_data.v6.system.payload": {
+      "name": "payload",
+      "item_id": "019cd752-4d36-7b4e-87a6-96a6b30abf51",
+      "first_accessed_at": 1778799839.2567945
+    },
+    "og3.og003_technical_data.v6.system.payload.nac": {
+      "name": "nac",
+      "item_id": "019cd752-4d38-70bb-94c9-9b5907d69af0",
+      "first_accessed_at": 1778799909.3760386
+    },
+    "og3.og003_technical_data.v6.system.payload.wac": {
+      "name": "wac",
+      "item_id": "019cd752-4d3a-70ac-8df0-3f9593ec47c7",
+      "first_accessed_at": 1778799924.803479
+    },
+    "og3.og003_technical_data.v6.system.payload.spec_cam": {
+      "name": "spec_cam",
+      "item_id": "019cd752-4d4b-753d-96b3-24fd4760d4ce",
+      "first_accessed_at": 1778799934.9024377
+    },
+    "og3.og003_technical_data.v6.system.payload.lrf": {
+      "name": "lrf",
+      "item_id": "019cd752-4d3c-7d01-8f1f-13629471b100",
+      "first_accessed_at": 1778799938.7952468
+    },
+    "og3.og003_technical_data.v6.system.payload.k_ka_transponder": {
+      "name": "k_ka_transponder",
+      "item_id": "019cd752-4d44-7105-9ecc-3b41931c13dd",
+      "first_accessed_at": 1778799942.0510063
+    },
+    "og3.og003_technical_data.v6.system.payload.kaband_antenna": {
+      "name": "kaband_antenna",
+      "item_id": "019cd752-4d49-7104-9237-706470a5bcf7",
+      "first_accessed_at": 1778799945.1352885
+    },
+    "og3.og003_technical_data.v6.system.payload.kband_antenna": {
+      "name": "kband_antenna",
+      "item_id": "019cd752-4d46-736f-992e-f9f475985a77",
+      "first_accessed_at": 1778799947.907771
     }
   },
   "accessed_properties": {
@@ -79,7 +559,317 @@
       "name": "average_power_consumption_max",
       "property_id": "019cd752-5090-7f53-b1dd-311099f2e7e4",
       "first_accessed_at": 1778577576.2413273
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.string_power_eol": {
+      "name": "string_power_eol",
+      "property_id": "019cd752-4e7e-7f22-8fd8-11db1735fc63",
+      "first_accessed_at": 1778798945.9869523
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.baseline_power_consumption": {
+      "name": "baseline_power_consumption",
+      "property_id": "019cd752-4ee2-7e92-8f37-4b61579696f4",
+      "first_accessed_at": 1778798946.3906054
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.max_duration_pps_on_inspection": {
+      "name": "max_duration_pps_on_inspection",
+      "property_id": "019cd752-5039-7d0d-a4c3-c14605c4782f",
+      "first_accessed_at": 1778798946.8311427
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.number_solar_panel_wings": {
+      "name": "number_solar_panel_wings",
+      "property_id": "019cd752-5192-7ca9-989d-0a7b9540165e",
+      "first_accessed_at": 1778798947.231556
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.wing_mass": {
+      "name": "wing_mass",
+      "property_id": "019cd752-51b2-76ac-bb03-35dcbcb33d80",
+      "first_accessed_at": 1778798947.6272883
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.number_solar_panel_per_wing": {
+      "name": "number_solar_panel_per_wing",
+      "property_id": "019cd752-521f-7719-871a-cc4cc1b19dd2",
+      "first_accessed_at": 1778798948.0178347
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.baseline_pps_power_consumption": {
+      "name": "baseline_pps_power_consumption",
+      "property_id": "019cd752-5276-7032-89b4-179e6c627811",
+      "first_accessed_at": 1778798948.467994
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.eclipse_power_consumption": {
+      "name": "eclipse_power_consumption",
+      "property_id": "019cd752-544b-7772-809c-c0124a1535e2",
+      "first_accessed_at": 1778798948.8606858
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.max_duration_pps_on_orbitraising": {
+      "name": "max_duration_pps_on_orbitraising",
+      "property_id": "019cd752-54d9-765c-8e93-607cb820545d",
+      "first_accessed_at": 1778798949.2798142
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.duty_cycle_pps_inspection": {
+      "name": "duty_cycle_pps_inspection",
+      "property_id": "019cd752-544d-7d38-adad-2eceacafb879",
+      "first_accessed_at": 1778798949.682382
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.duty_cycle_pps_orbitraising": {
+      "name": "duty_cycle_pps_orbitraising",
+      "property_id": "019cd752-502e-7b36-88ed-92eefa31d456",
+      "first_accessed_at": 1778798950.098982
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.solar_channel_generation_eol": {
+      "name": "solar_channel_generation_eol",
+      "property_id": "019cd752-4df5-707b-8f97-54490e2cc41e",
+      "first_accessed_at": 1778798950.6111214
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.total_mass": {
+      "name": "total_mass",
+      "property_id": "019cd752-4fae-7511-8c25-75bd13d7b012",
+      "first_accessed_at": 1778798951.1302106
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.yoke_power_eol": {
+      "name": "yoke_power_eol",
+      "property_id": "019cd752-5036-7bc0-9518-96b51adae7c4",
+      "first_accessed_at": 1778798952.2087426
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.total_solar_power": {
+      "name": "total_solar_power",
+      "property_id": "019cd752-5461-7da1-a6f2-5f01d5d8f72d",
+      "first_accessed_at": 1778798952.6662252
+    },
+    "og3.og003_technical_data.v6.system.power.solararray.cog_coordinates": {
+      "name": "cog_coordinates",
+      "property_id": "019cd752-4fd3-7f50-8aaf-5ee3a9bac500",
+      "first_accessed_at": 1778798953.1797993
+    },
+    "og3.og003_technical_data.v6.system.power.batteries.see_threshold": {
+      "name": "see_threshold",
+      "property_id": "019cd752-4e37-7190-87cb-e13cb4861d23",
+      "first_accessed_at": 1778798954.6882532
+    },
+    "og3.og003_technical_data.v6.system.power.batteries.battery_voltage_max": {
+      "name": "battery_voltage_max",
+      "property_id": "019cd752-4f40-7c67-ad67-845675dbd983",
+      "first_accessed_at": 1778798955.1043742
+    },
+    "og3.og003_technical_data.v6.system.power.batteries.mass": {
+      "name": "mass",
+      "property_id": "019cd752-4f67-7af9-9b4a-50eb857caae3",
+      "first_accessed_at": 1778798955.5068088
+    },
+    "og3.og003_technical_data.v6.system.power.batteries.tid_threshold": {
+      "name": "tid_threshold",
+      "property_id": "019cd752-500b-7fdb-b5fb-480939945632",
+      "first_accessed_at": 1778798955.9077291
+    },
+    "og3.og003_technical_data.v6.system.power.batteries.battery_capacity": {
+      "name": "battery_capacity",
+      "property_id": "019cd752-515f-725d-9d6c-07f44c77f270",
+      "first_accessed_at": 1778798956.3023224
+    },
+    "og3.og003_technical_data.v6.system.power.batteries.maximum_charge_rate": {
+      "name": "maximum_charge_rate",
+      "property_id": "019cd752-51ea-7f80-97f4-5be3d23540a0",
+      "first_accessed_at": 1778798956.7143948
+    },
+    "og3.og003_technical_data.v6.system.power.batteries.battery_voltage_min": {
+      "name": "battery_voltage_min",
+      "property_id": "019cd752-5222-7cdb-a4e4-d3f793ebb22b",
+      "first_accessed_at": 1778798957.1202111
+    },
+    "og3.og003_technical_data.v6.system.power.batteries.maximum_discharge_rate": {
+      "name": "maximum_discharge_rate",
+      "property_id": "019cd752-52e4-77ab-a76e-3e1bdb38a22f",
+      "first_accessed_at": 1778798957.5302193
+    },
+    "og3.og003_technical_data.v6.system.power.batteries.mass_marged": {
+      "name": "mass_marged",
+      "property_id": "019cd752-4e2f-75f4-8405-0c19d9b55452",
+      "first_accessed_at": 1778798957.9212453
+    },
+    "og3.og003_technical_data.v6.system.power.batteries.cog_coordinates": {
+      "name": "cog_coordinates",
+      "property_id": "019cd752-50ab-738d-b256-823819e24dd7",
+      "first_accessed_at": 1778798958.3259792
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.sun_exclusion_angle": {
+      "name": "sun_exclusion_angle",
+      "property_id": "019cd752-4ec2-7bc2-804a-dfabd73622de",
+      "first_accessed_at": 1778799911.2293956
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.nominal_electrical_potential": {
+      "name": "nominal_electrical_potential",
+      "property_id": "019cd752-4f47-7a6c-8659-c03d8fee742f",
+      "first_accessed_at": 1778799912.3490791
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.min_operation_temperature_range": {
+      "name": "min_operation_temperature_range",
+      "property_id": "019cd752-4fb4-7a1d-a30d-d18c95b552c8",
+      "first_accessed_at": 1778799913.4121547
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.mass_max": {
+      "name": "mass_max",
+      "property_id": "019cd752-4fd8-7067-b861-d60cdae88b23",
+      "first_accessed_at": 1778799914.3369818
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.max_operation_temperature_range": {
+      "name": "max_operation_temperature_range",
+      "property_id": "019cd752-5006-7cac-9de6-6a2babd13723",
+      "first_accessed_at": 1778799915.4418027
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.see_tolerance": {
+      "name": "see_tolerance",
+      "property_id": "019cd752-50d9-7341-9f42-200d7b7c59f8",
+      "first_accessed_at": 1778799916.466992
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.minimum_depth_of_field": {
+      "name": "minimum_depth_of_field",
+      "property_id": "019cd752-5180-7c19-bc71-deec9b68c41c",
+      "first_accessed_at": 1778799917.492388
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.sensor_bit_depth": {
+      "name": "sensor_bit_depth",
+      "property_id": "019cd752-5278-7e66-b264-fabff6f28d2c",
+      "first_accessed_at": 1778799918.4113955
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.pixel_size": {
+      "name": "pixel_size",
+      "property_id": "019cd752-5295-7836-b17a-88b789e45b98",
+      "first_accessed_at": 1778799919.2811987
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.peak_power_consumption": {
+      "name": "peak_power_consumption",
+      "property_id": "019cd752-52e6-71ce-a7d6-4446693cb9b0",
+      "first_accessed_at": 1778799920.2334318
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.tid_tolerance": {
+      "name": "tid_tolerance",
+      "property_id": "019cd752-5356-7161-8ff0-77d4cfc47a0d",
+      "first_accessed_at": 1778799921.175825
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.mass_min": {
+      "name": "mass_min",
+      "property_id": "019cd752-537b-7e0d-9d36-0099f80f2ceb",
+      "first_accessed_at": 1778799922.058874
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.field_of_view": {
+      "name": "field_of_view",
+      "property_id": "019cd752-5389-7e57-bad8-1c7ad41219ce",
+      "first_accessed_at": 1778799923.0199962
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.idle_power_consumption": {
+      "name": "idle_power_consumption",
+      "property_id": "019cd752-53c9-7789-bcb4-1e290238e1b5",
+      "first_accessed_at": 1778799923.9326344
+    },
+    "og3.og003_technical_data.v6.system.payload.nac.focal_lenght": {
+      "name": "focal_lenght",
+      "property_id": "019cd752-54b1-7b3d-9b61-2b6cfa8a2c69",
+      "first_accessed_at": 1778799924.7979374
+    },
+    "og3.og003_technical_data.v6.system.payload.wac.focal_length": {
+      "name": "focal_length",
+      "property_id": "019cd752-4dee-7d47-bbc0-0d2e4be38f33",
+      "first_accessed_at": 1778799926.4879558
+    },
+    "og3.og003_technical_data.v6.system.payload.wac.see_tolerance": {
+      "name": "see_tolerance",
+      "property_id": "019cd752-4df0-7b3b-a383-dbf85974dda2",
+      "first_accessed_at": 1778799927.3278077
+    },
+    "og3.og003_technical_data.v6.system.payload.wac.field_of_view_diagonal": {
+      "name": "field_of_view_diagonal",
+      "property_id": "019cd752-4e31-7459-bf8f-2018f1791961",
+      "first_accessed_at": 1778799928.1823823
+    },
+    "og3.og003_technical_data.v6.system.payload.wac.nominal_electrical_potential": {
+      "name": "nominal_electrical_potential",
+      "property_id": "019cd752-4ece-7e08-ba6d-d5a79ef5860d",
+      "first_accessed_at": 1778799929.1510417
+    },
+    "og3.og003_technical_data.v6.system.payload.wac.mass_min": {
+      "name": "mass_min",
+      "property_id": "019cd752-4f50-7573-8ff4-190a8415c40d",
+      "first_accessed_at": 1778799930.006711
+    },
+    "og3.og003_technical_data.v6.system.payload.wac.peak_power_consumption": {
+      "name": "peak_power_consumption",
+      "property_id": "019cd752-51bb-7480-b6cf-9c1c6b51a69f",
+      "first_accessed_at": 1778799930.840651
+    },
+    "og3.og003_technical_data.v6.system.payload.wac.tid_tolerance": {
+      "name": "tid_tolerance",
+      "property_id": "019cd752-5225-7331-a8f7-38cf7f7f005f",
+      "first_accessed_at": 1778799931.81882
+    },
+    "og3.og003_technical_data.v6.system.payload.wac.idle_power_consumption": {
+      "name": "idle_power_consumption",
+      "property_id": "019cd752-53d0-702b-8620-30fc9452c113",
+      "first_accessed_at": 1778799932.948675
+    },
+    "og3.og003_technical_data.v6.system.payload.wac.mass_max": {
+      "name": "mass_max",
+      "property_id": "019cd752-5491-7c2d-aa51-71d7549a060c",
+      "first_accessed_at": 1778799933.874273
+    },
+    "og3.og003_technical_data.v6.system.payload.wac.sun_exclusion_angle": {
+      "name": "sun_exclusion_angle",
+      "property_id": "019cd752-5056-71db-9f9b-666c354924be",
+      "first_accessed_at": 1778799934.8967526
+    },
+    "og3.og003_technical_data.v6.system.payload.spec_cam.mass": {
+      "name": "mass",
+      "property_id": "019cd752-5212-77f5-a73a-728cc9a42714",
+      "first_accessed_at": 1778799936.8440914
+    },
+    "og3.og003_technical_data.v6.system.payload.spec_cam.fov_across_track": {
+      "name": "fov_across_track",
+      "property_id": "019cd752-52af-7b85-a81d-623a8a4fac58",
+      "first_accessed_at": 1778799937.8328848
+    },
+    "og3.og003_technical_data.v6.system.payload.spec_cam.fov_along_track": {
+      "name": "fov_along_track",
+      "property_id": "019cd752-53bd-7ca4-b45c-9e759d201807",
+      "first_accessed_at": 1778799938.7899325
+    },
+    "og3.og003_technical_data.v6.system.payload.lrf.mass_min": {
+      "name": "mass_min",
+      "property_id": "019cd752-4fcb-714b-b70a-d674953e73d1",
+      "first_accessed_at": 1778799940.726948
+    },
+    "og3.og003_technical_data.v6.system.payload.lrf.mass_max": {
+      "name": "mass_max",
+      "property_id": "019cd752-5420-7a20-bdee-93abd13acd7b",
+      "first_accessed_at": 1778799941.6481419
+    },
+    "og3.og003_technical_data.v6.system.payload.k_ka_transponder.mass_max": {
+      "name": "mass_max",
+      "property_id": "019cd752-4f31-7797-a327-68c6d0e4131f",
+      "first_accessed_at": 1778799944.1133118
+    },
+    "og3.og003_technical_data.v6.system.payload.k_ka_transponder.mass_min": {
+      "name": "mass_min",
+      "property_id": "019cd752-5455-77d8-a861-83569449a69e",
+      "first_accessed_at": 1778799945.1300695
+    },
+    "og3.og003_technical_data.v6.system.payload.kaband_antenna.mass_max": {
+      "name": "mass_max",
+      "property_id": "019cd752-5176-7cc2-86b0-23ea8f5ec2c2",
+      "first_accessed_at": 1778799946.9154282
+    },
+    "og3.og003_technical_data.v6.system.payload.kaband_antenna.mass_min": {
+      "name": "mass_min",
+      "property_id": "019cd752-5449-76c5-8431-46e8de9e5b8b",
+      "first_accessed_at": 1778799947.902363
+    },
+    "og3.og003_technical_data.v6.system.payload.kband_antenna.mass_max": {
+      "name": "mass_max",
+      "property_id": "019cd752-4f27-76e9-94b6-c5ef8a6526b5",
+      "first_accessed_at": 1778799949.6316664
+    },
+    "og3.og003_technical_data.v6.system.payload.kband_antenna.mass_min": {
+      "name": "mass_min",
+      "property_id": "019cd752-5297-718e-ab1a-9d8907cb33ee",
+      "first_accessed_at": 1778799950.5563343
     }
   },
-  "last_updated": 1778663915.341908
+  "last_updated": 1778801659.8330317
 }

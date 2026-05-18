@@ -28,6 +28,7 @@ import warnings
 import numpy as np
 import scipy.io
 from datetime import datetime, timezone
+from rdv_phases import shade_phases
 
 # ── Mission constants ──────────────────────────────────────────────────────────
 DT_DAYS        = 300.0 / 86400.0
@@ -241,6 +242,7 @@ def generate_slew_comparison_figure(
                 bbox=dict(boxstyle="round,pad=0.35", facecolor="white",
                           edgecolor="#CBD5E1", alpha=0.93))
 
+        shade_phases(ax, lo, hi)
         _add_maneuvers(ax, m1["man_rcs"], m1["man_pps"], lo, hi)
 
         ax.set_xlim(lo, hi)
@@ -314,6 +316,7 @@ def generate_figure(days, ang, slew_m1, slew_m2, ant_err, dlambda,
     ax1.set_ylabel("Earth–Target\nang. sep. [deg]", fontsize=10,
                    color=txt, fontweight="medium")
     ax1.legend(fontsize=8, framealpha=0.9, loc="upper right", edgecolor="#E2E8F0")
+    shade_phases(ax1, lo, hi)
     _add_maneuvers(ax1, man_rcs, man_pps, lo, hi)
 
     # ── Panel 2: Slew angles ──────────────────────────────────────────────────
@@ -337,6 +340,7 @@ def generate_figure(days, ang, slew_m1, slew_m2, ant_err, dlambda,
     ax2.set_ylabel("Slew to combined\nattitude [deg]", fontsize=10,
                    color=txt, fontweight="medium")
     ax2.legend(fontsize=9, framealpha=0.9, loc="upper right", edgecolor="#E2E8F0")
+    shade_phases(ax2, lo, hi)
     _add_maneuvers(ax2, man_rcs, man_pps, lo, hi)
 
     # ── Panel 3: Antenna error in combined attitude ───────────────────────────
@@ -361,6 +365,7 @@ def generate_figure(days, ang, slew_m1, slew_m2, ant_err, dlambda,
     ax3.set_ylabel("X-band antenna\nerror [deg]", fontsize=10,
                    color=txt, fontweight="medium")
     ax3.legend(fontsize=8, framealpha=0.9, loc="upper right", edgecolor="#E2E8F0")
+    shade_phases(ax3, lo, hi)
     _add_maneuvers(ax3, man_rcs, man_pps, lo, hi)
 
     # ── Panel 4: along-track ─────────────────────────────────────────────────
@@ -370,6 +375,7 @@ def generate_figure(days, ang, slew_m1, slew_m2, ant_err, dlambda,
     ax4.axhline(0, color="#DC2626", lw=0.6, ls="--", alpha=0.5)
     ax4.set_ylabel("a·δλ [km]", fontsize=10, color=txt, fontweight="medium")
     ax4.set_xlabel("Mission elapsed time [days]", fontsize=10, color=txt)
+    shade_phases(ax4, lo, hi, label_y=0.015, label_va="bottom")
     _add_maneuvers(ax4, man_rcs, man_pps, lo, hi)
 
     for ax in axes:

@@ -39,6 +39,7 @@ import warnings
 import numpy as np
 import scipy.io
 from datetime import datetime, timezone
+from rdv_phases import shade_phases
 
 # ── Mission constants ──────────────────────────────────────────────────────────
 DT_DAYS        = 300.0 / 86400.0
@@ -218,6 +219,7 @@ def generate_figure(m1, m2, x_range, phase_label, filepath, dpi):
     ax1.set_ylabel("Earth–Target\nangular sep. [deg]", fontsize=10,
                    color=txt, fontweight="medium")
     ax1.legend(fontsize=8, framealpha=0.9, loc="upper right", edgecolor="#E2E8F0")
+    shade_phases(ax1, lo, hi)
     _add_maneuvers(ax1, m1["man_rcs"], m1["man_pps"], lo, hi)
 
     # ── Panel 2: Pointing errors — Mode 1 (antenna) vs Mode 2 (target) ───────
@@ -242,6 +244,7 @@ def generate_figure(m1, m2, x_range, phase_label, filepath, dpi):
     ax2.set_ylabel("Pointing error [deg]", fontsize=10,
                    color=txt, fontweight="medium")
     ax2.legend(fontsize=8.5, framealpha=0.9, loc="upper right", edgecolor="#E2E8F0")
+    shade_phases(ax2, lo, hi)
     _add_maneuvers(ax2, m1["man_rcs"], m1["man_pps"], lo, hi)
 
     # Feasibility inset table for Mode 1
@@ -269,6 +272,7 @@ def generate_figure(m1, m2, x_range, phase_label, filepath, dpi):
     ax3.axhline(0, color="#DC2626", lw=0.6, ls="--", alpha=0.5)
     ax3.set_ylabel("a·δλ [km]", fontsize=10, color=txt, fontweight="medium")
     ax3.set_xlabel("Mission elapsed time [days]", fontsize=10, color=txt)
+    shade_phases(ax3, lo, hi, label_y=0.015, label_va="bottom")
     _add_maneuvers(ax3, m1["man_rcs"], m1["man_pps"], lo, hi)
 
     for ax in axes:

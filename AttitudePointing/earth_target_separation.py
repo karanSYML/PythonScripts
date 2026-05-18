@@ -28,6 +28,7 @@ import warnings
 import numpy as np
 import scipy.io
 from datetime import datetime, timezone
+from rdv_phases import shade_phases
 
 # ── Mission constants ──────────────────────────────────────────────────────────
 DT_DAYS  = 300.0 / 86400.0
@@ -180,6 +181,7 @@ def plot_far(data, x_range, filepath, dpi):
     ax1.set_ylabel("Earth–Target\nangular sep. [deg]", fontsize=10,
                    color=txt, fontweight="medium")
     ax1.legend(loc="upper right", fontsize=8, framealpha=0.9, edgecolor="#E2E8F0")
+    shade_phases(ax1, lo, hi)
     _add_maneuvers(ax1, data["man_rcs"], data["man_pps"], lo, hi)
     ax1.text(0.01, 0.04,
              "Geometric angle between Earth & target (attitude-independent)",
@@ -203,6 +205,7 @@ def plot_far(data, x_range, filepath, dpi):
     ax2.axhline(0, color="#DC2626", lw=0.6, ls="--", alpha=0.5)
     ax2.set_ylabel("a·δλ [km]", fontsize=10, color=txt, fontweight="medium")
     ax2.set_xlabel("Mission elapsed time [days]", fontsize=10, color=txt)
+    shade_phases(ax2, lo, hi, label_y=0.015, label_va="bottom")
     _add_maneuvers(ax2, data["man_rcs"], data["man_pps"], lo, hi)
 
     for ax in axes:
@@ -315,6 +318,7 @@ def plot_close(data, x_range, filepath, dpi):
     handles, labels = ax1.get_legend_handles_labels()
     ax1.legend(handles=handles + extra, loc="lower right", fontsize=8,
                framealpha=0.9, edgecolor="#E2E8F0")
+    shade_phases(ax1, lo, hi)
 
     # ── Panel 2: feasible geometry duration per 6-h window ──────────────────
     ax2 = axes[1]
@@ -334,6 +338,7 @@ def plot_close(data, x_range, filepath, dpi):
     n_ok = np.sum(feasible_dur >= WINDOW_DUR_MIN)
     n_win = len(win_starts)
     ax2.legend(fontsize=8, framealpha=0.9, loc="upper right", edgecolor="#E2E8F0")
+    shade_phases(ax2, lo, hi)
     ax2.text(0.01, 0.95,
              f"Green = ≥{WINDOW_DUR_MIN:.0f} min feasible (window fits)  |  Red = below budget",
              transform=ax2.transAxes, fontsize=8, color="#64748B",
@@ -354,6 +359,7 @@ def plot_close(data, x_range, filepath, dpi):
     ax3.axhline(0, color="#DC2626", lw=0.6, ls="--", alpha=0.5)
     ax3.set_ylabel("a·δλ [km]", fontsize=10, color=txt, fontweight="medium")
     ax3.set_xlabel("Mission elapsed time [days]", fontsize=10, color=txt)
+    shade_phases(ax3, lo, hi, label_y=0.015, label_va="bottom")
     _add_maneuvers(ax3, data["man_rcs"], data["man_pps"], lo, hi)
 
     for ax in axes:
