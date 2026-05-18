@@ -41,7 +41,7 @@ STR_AXIS = 0   # STR boresight +X (TBC)
 
 CAMERA_EXCL_DEG  = 30.0   # half-cone exclusion (TBC)
 STR_EXCL_DEG     = 35.0   # GEO typical half-cone exclusion (TBC)
-SPEC_EXCL_DEG    = 3.75   # Triscape100 sun exclusion half-cone
+SPEC_EXCL_DEG    = 3.75   # Telescope sun exclusion half-cone
 SPEC_MAX_MIN     = 5.0    # maximum allowed continuous exposure (min)
 DT_SEC           = 300.0  # timestep in seconds
 
@@ -205,15 +205,15 @@ def generate_figure(m1, m2, x_range, phase_label, filepath, dpi):
              bbox=dict(boxstyle="round,pad=0.3", facecolor="white",
                        edgecolor="#CBD5E1", alpha=0.9))
 
-    # ── Panel 2: SPEC_CAM (Triscape100) sun angle ──────────────────────────
+    # ── Panel 2: Telescope sun angle ───────────────────────────────────────
     ax2 = axes[1]
-    spec1 = m1["sun_deg"][mask1, CAM_AXIS]   # co-boresighted with NAC (+Z)
+    spec1 = m1["sun_deg"][mask1, CAM_AXIS]   # co-boresighted with camera (+Z)
     spec2 = m2["sun_deg"][mask2, CAM_AXIS]
 
     ax2.plot(d1, spec1, color="#7C3AED", lw=0.7, alpha=0.9, label="Mode 1 (Target+Sun)")
     ax2.plot(d2, spec2, color="#0EA5E9", lw=0.7, alpha=0.9, label="Mode 2 (Nadir+Sun)")
     ax2.axhline(SPEC_EXCL_DEG, color="#DC2626", lw=1.4, ls="--",
-                label=f"SPEC_CAM exclusion {SPEC_EXCL_DEG}°")
+                label=f"Telescope exclusion {SPEC_EXCL_DEG}°")
     ax2.fill_between(d1, 0, SPEC_EXCL_DEG, alpha=0.08, color="#DC2626")
 
     # Single-epoch violations (amber) and multi-epoch >5 min (red) for Mode 1
@@ -260,7 +260,7 @@ def generate_figure(m1, m2, x_range, phase_label, filepath, dpi):
         Patch(color="#0284C7", alpha=0.6, label="M2: >5 min exposure"),
     ]
     ax2.set_ylim(0, max(spec1.max(), spec2.max()) * 1.1 + 2)
-    ax2.set_ylabel(f"Sun angle from\nSPEC_CAM (+Z) [deg]", fontsize=10,
+    ax2.set_ylabel(f"Sun angle from\nTelescope (+Z) [deg]", fontsize=10,
                    color=txt, fontweight="medium")
     ax2.legend(handles=ax2.get_legend_handles_labels()[0][:2] + spec_legend_extras,
                fontsize=7.5, framealpha=0.9, loc="upper right", edgecolor="#E2E8F0", ncol=2)
@@ -317,7 +317,7 @@ def generate_figure(m1, m2, x_range, phase_label, filepath, dpi):
     fig.suptitle(
         f"Thermal Constraints — {phase_label}\n"
         f"Camera exclusion (+Z, {CAMERA_EXCL_DEG:.0f}° TBC)  |  "
-        f"SPEC_CAM Triscape100 (+Z, {SPEC_EXCL_DEG}°, max {SPEC_MAX_MIN:.0f} min)  |  "
+        f"Telescope (+Z, {SPEC_EXCL_DEG}°, max {SPEC_MAX_MIN:.0f} min)  |  "
         f"STR blinding (+X TBC, {STR_EXCL_DEG:.0f}° TBC)",
         fontsize=11, color=txt, fontweight="bold", y=0.99, linespacing=1.4)
 
@@ -348,7 +348,7 @@ def main():
     print(f"\n{'='*60}")
     print("  Thermal Constraints Analysis")
     print(f"  Camera exclusion: {CAMERA_EXCL_DEG}°  |  "
-          f"SPEC_CAM: {SPEC_EXCL_DEG}° (max {SPEC_MAX_MIN:.0f} min)  |  "
+          f"Telescope: {SPEC_EXCL_DEG}° (max {SPEC_MAX_MIN:.0f} min)  |  "
           f"STR: {STR_EXCL_DEG}°")
     print(f"{'='*60}")
 
@@ -368,14 +368,14 @@ def main():
     far_range   = (0.0, phase_day)
     close_range = (phase_day, days_max)
 
-    print(f"\n  Phase split: far range [0, {phase_day:.1f} d]  |  "
-          f"close range [{phase_day:.1f}, {days_max:.1f} d]")
+    print(f"\n  Phase split: Phases 1–4 [0, {phase_day:.1f} d]  |  "
+          f"Phases 5–9 [{phase_day:.1f}, {days_max:.1f} d]")
 
     # Print summary statistics
-    for label, m, x_range in [("Far range   — Mode 1", m1, far_range),
-                               ("Far range   — Mode 2", m2, far_range),
-                               ("Close range — Mode 1", m1, close_range),
-                               ("Close range — Mode 2", m2, close_range)]:
+    for label, m, x_range in [("Phases 1–4 — Mode 1", m1, far_range),
+                               ("Phases 1–4 — Mode 2", m2, far_range),
+                               ("Phases 5–9 — Mode 1", m1, close_range),
+                               ("Phases 5–9 — Mode 2", m2, close_range)]:
         mask = (m["days"] >= x_range[0]) & (m["days"] <= x_range[1])
         cam = m["sun_deg"][mask, CAM_AXIS]
         st  = m["sun_deg"][mask, STR_AXIS]
@@ -386,13 +386,13 @@ def main():
         n_over5 = sum(1 for r in spec_runs if r[2] * DT_SEC / 60 > SPEC_MAX_MIN)
         max_run  = max((r[2] * DT_SEC / 60 for r in spec_runs), default=0)
         print(f"  {label}: Camera {pc_cam:5.1f}%  "
-              f"SPEC_CAM {pc_spec:.2f}% (>{SPEC_MAX_MIN:.0f}min events: {n_over5}, "
+              f"Telescope {pc_spec:.2f}% (>{SPEC_MAX_MIN:.0f}min events: {n_over5}, "
               f"longest: {max_run:.0f} min)  STR {pc_str:5.1f}%")
 
     print("\nGenerating figures...")
-    generate_figure(m1, m2, far_range,   "Far Range (−60 to −5 km)",
+    generate_figure(m1, m2, far_range,   "Phases 1–4 (−60 to −5 km)",
                     args.output_far, args.dpi)
-    generate_figure(m1, m2, close_range, "Close Range (−5 to +1 km)",
+    generate_figure(m1, m2, close_range, "Phases 5–9 (−5 to +1 km)",
                     args.output_close, args.dpi)
 
     print("\nDone.")

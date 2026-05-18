@@ -41,13 +41,15 @@ R_EARTH_M      = 6.3781e6
 # ── Power budget constants (W) ─────────────────────────────────────────────────
 P_SOLAR_MAX       = 344.0    # EOL, SAD fully sun-pointed
 P_BASELINE        = 260.0    # platform (incl. RCS idle, AOCS, OBC, TT&C rx)
-P_PPS_TOTAL       = 570.0    # total bus power during PPS firing
+P_PPU_FIRING      = 380.0    # PPU avg power during firing (POELIS pps.average_power_consumption_max; range 365–380 W)
+P_PPS_TOTAL       = P_BASELINE + P_PPU_FIRING  # total bus during PPS firing (~640 W)
 P_RCS_ARMED       = 6.0      # RCS armed (vs 4 W idle → +2 W, inside baseline)
 P_RCS_FIRING      = 14.1     # hot gas firing, 4-thruster → delta above baseline
-P_CAMERA_IDLE     = 5.0      # camera standby (one unit, 5 W — NAC or WAC TBC)
-P_CAMERA_ACTIVE   = 8.0      # camera active during combined pointing window (8 W)
-# SPEC_CAM (Triscape100) power TBC — add here when confirmed
-P_SPECCAM_ACTIVE  = 0.0      # TBC
+P_CAMERA_IDLE     = 5.0      # NAC standby (5 W)
+P_CAMERA_ACTIVE   = 8.0      # NAC active during combined pointing window (8 W)
+# Telescope (formerly SPEC_CAM/Triscape100) — same power rating as NAC; WAC removed
+P_TELESCOPE_IDLE   = 5.0     # Telescope standby
+P_TELESCOPE_ACTIVE = 8.0     # Telescope active (co-boresighted +Z with NAC)
 P_XBAND_TX        = 40.0     # X-band TX during comms window (educated guess)
 ANTENNA_HCONE_DEG = 4.5      # X-band 3 dB half-cone
 BATTERY_CAP_WH    = 550.0    # battery capacity
@@ -142,7 +144,9 @@ def compute_power(m):
 
     # Camera + comms active during combined pointing window
     in_window = m["ant_earth"] <= ANTENNA_HCONE_DEG
-    p_camera  = np.where(in_window, P_CAMERA_ACTIVE + P_SPECCAM_ACTIVE, P_CAMERA_IDLE)
+    p_camera  = np.where(in_window,
+                         P_CAMERA_ACTIVE + P_TELESCOPE_ACTIVE,
+                         P_CAMERA_IDLE  + P_TELESCOPE_IDLE)
     p_comms   = np.where(in_window, P_XBAND_TX, 0.0)
 
     # RCS firing: mark epochs within ±DT_SEC/2 of a maneuver event
@@ -243,7 +247,7 @@ def generate_power_figure(m, pw, mode_label, x_range, phase_label, filepath, dpi
     ax2 = axes[1]
     ax2.stackplot(d,
                   p_base, p_camera, p_comms, p_rcs, p_pps,
-                  labels=["Baseline", "Camera + SPEC_CAM (TBC)", "X-band TX (est.)",
+                  labels=["Baseline", "Camera + Telescope", "X-band TX (est.)",
                           "RCS firing Δ", "PPS firing Δ"],
                   colors=["#94A3B8", "#8B5CF6", "#06B6D4", "#3B82F6", "#EF4444"],
                   alpha=0.85)
@@ -340,8 +344,8 @@ def main():
         phase_day = m["days"][close_idx[0]] if close_idx.size > 0 else m["days"][-1] * 0.6
 
         for phase, rng, tag in [
-            ("Far Range (−60 to −5 km)",  (0.0, phase_day),        f"{prefix}_far.png"),
-            ("Close Range (−5 to +1 km)", (phase_day, m["days"][-1]), f"{prefix}_close.png"),
+            ("Phases 1–4 (−60 to −5 km)", (0.0, phase_day),         f"{prefix}_far.png"),
+            ("Phases 5–9 (−5 to +1 km)",  (phase_day, m["days"][-1]), f"{prefix}_close.png"),
         ]:
             print(f"  Generating {phase}...")
             generate_power_figure(m, pw, mode_label, rng, phase, tag, args.dpi)

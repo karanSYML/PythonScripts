@@ -212,7 +212,7 @@ def plot_far(data, x_range, filepath, dpi):
         ax.set_xlim(lo, hi)
 
     fig.suptitle(
-        "Earth–Target Angular Separation — Far Range (−60 to −5 km)\n"
+        "Earth–Target Angular Separation — Phases 1–4 (−60 to −5 km)\n"
         "How far apart are the Earth and target pointing directions?",
         fontsize=13, color=txt, fontweight="bold", y=0.99, linespacing=1.4)
 
@@ -366,7 +366,7 @@ def plot_close(data, x_range, filepath, dpi):
         ax.set_xlim(lo, hi)
 
     fig.suptitle(
-        "Earth–Target Angular Separation — Close Range (−5 to +1 km)\n"
+        "Earth–Target Angular Separation — Phases 5–9 (−5 to +1 km)\n"
         "90° crossing periodicity  |  Feasible geometry duration per 6-h window",
         fontsize=13, color=txt, fontweight="bold", y=0.99, linespacing=1.4)
 
@@ -417,13 +417,13 @@ def main():
     far_range   = (0.0,       phase_day)
     close_range = (phase_day, days[-1])
 
-    print("\nGenerating far-range figure...")
+    print("\nGenerating Phases 1–4 figure...")
     plot_far(data, far_range, args.output_far, args.dpi)
 
-    print("Generating close-range figure...")
+    print("Generating Phases 5–9 figure...")
     crossings, max_gap_hr, feas_dur = plot_close(data, close_range, args.output_close, args.dpi)
 
-    print(f"\n  Close-range 90° crossings: {crossings.size}")
+    print(f"\n  Phases 5–9 90° crossings: {crossings.size}")
     if not np.isnan(max_gap_hr):
         print(f"  Max gap between crossings: {max_gap_hr:.1f} h "
               f"({'≤ 6 h ✓' if max_gap_hr <= 6 else '> 6 h ✗'})")

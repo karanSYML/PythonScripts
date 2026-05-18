@@ -343,12 +343,12 @@ def main():
     print_summary("Mode 1 antenna error (full timeline)", err_m1_all)
     print_summary("Mode 2 target error  (full timeline)", err_m2_all)
 
-    print("\nGenerating far-range figure...")
-    generate_figure(m1, m2, far_range,   "Far Range (−60 to −5 km)",
+    print("\nGenerating Phases 1–4 figure...")
+    generate_figure(m1, m2, far_range,   "Phases 1–4 (−60 to −5 km)",
                     args.output_far, args.dpi)
 
-    print("Generating close-range figure...")
-    generate_figure(m1, m2, close_range, "Close Range (−5 to +1 km)",
+    print("Generating Phases 5–9 figure...")
+    generate_figure(m1, m2, close_range, "Phases 5–9 (−5 to +1 km)",
                     args.output_close, args.dpi)
 
     print("\nDone.")

@@ -6,7 +6,7 @@ Updates EarthTargetPointingFeasibility_OG3.docx with:
   - Mission sub-phases table added to Section 1
   - Section 3.2 / 3.3 headings updated with phase names
   - Figures inserted throughout
-  - New Section 5.3 for SPEC_CAM (Triscape100)
+  - New Section 5.3 for Telescope (+Z, 3.75° sun exclusion)
   - Old 5.3 Mode guidance renumbered to 5.4
   - New Section 6 Power Budget
   - Conclusion renumbered to 7, Open Items to 8
@@ -122,6 +122,25 @@ def _add_bullet_after(doc, ref_elem, text):
     return p._element
 
 
+def _bulk_replace_runs(doc, mapping):
+    """Walk every paragraph (incl. table cells) and apply text replacement at the
+    run level. Replacement is only applied when the search substring lies within
+    a single run (sufficient for this document's flat formatting)."""
+    def _apply(paragraph):
+        for run in paragraph.runs:
+            for old, new in mapping.items():
+                if old in run.text:
+                    run.text = run.text.replace(old, new)
+
+    for p in doc.paragraphs:
+        _apply(p)
+    for tbl in doc.tables:
+        for row in tbl.rows:
+            for cell in row.cells:
+                for p in cell.paragraphs:
+                    _apply(p)
+
+
 def _add_table_after(doc, ref_elem, headers, rows):
     """Insert a table with headers + rows after ref_elem."""
     tbl = doc.add_table(rows=1 + len(rows), cols=len(headers))
@@ -163,9 +182,9 @@ def update():
     # Intro sentence
     ref = _add_para_after(
         doc, last_bullet._element,
-        "The full far-range rendezvous phase (−60 km to +1 km) is structured "
-        "into nine mission sub-phases as summarised below. All analyses in this "
-        "document are presented against this sub-phase timeline.")
+        "The full rendezvous timeline (−60 km to +1 km) is structured into nine "
+        "mission sub-phases as summarised below. All analyses in this document are "
+        "presented against this sub-phase timeline.")
 
     # Table
     headers = ["Phase", "Name", "Duration", "Along-track position"]
@@ -179,8 +198,8 @@ def update():
         for run in h32.runs:
             run.text = ""
         h32.runs[0].text = (
-            "3.2 Far-range phases (Phase 1 – Station-keeping through "
-            "Phase 4 – Accelerated approach, days 0–15.2, −61 to −5 km)")
+            "3.2 Phases 1–4 (Phase 1 – Station-keeping through "
+            "Phase 4 – Accelerated approach, days 0–15.2, −60 to −5 km)")
 
     # ── 3. Update Section 3.3 heading ────────────────────────────────────────
     print("  Updating section 3.3 heading...")
@@ -189,7 +208,7 @@ def update():
         for run in h33.runs:
             run.text = ""
         h33.runs[0].text = (
-            "3.3 Close-range phases (Phase 5 – Station-keeping through "
+            "3.3 Phases 5–9 (Phase 5 – Station-keeping through "
             "Phase 9 – Station-keeping, days 15.2–23.2, −5 to +1 km)")
 
     # ── 4. Rename 5.3 → 5.4 ──────────────────────────────────────────────────
@@ -210,26 +229,71 @@ def update():
     if h7 and h7.runs:
         h7.runs[0].text = h7.runs[0].text.replace("7.", "8.")
 
+    # ── 5b. Bulk replace "far/close range" terminology in remaining prose ────
+    print("  Replacing far/close range terminology with Phase nomenclature...")
+    # Order matters: longer/specific phrases first to preserve grammar.
+    mapping = {
+        # Specific phrasings that need verb-agreement or article fixes
+        "During the far-range rendezvous":     "During the rendezvous",
+        "The far-range phase is":              "Phases 1–4 are",
+        "The close-range phase is":            "Phases 5–9 are",
+        "The close-range phase presents":      "Phases 5–9 present",
+        "The close-range phase delivers":      "Phases 5–9 deliver",
+        "the far-range phase delivers":        "Phases 1–4 deliver",
+        "the close-range phase delivers":      "Phases 5–9 deliver",
+        # Common prepositional forms
+        "in the far-range phase":              "across Phases 1–4",
+        "in the close-range phase":            "across Phases 5–9",
+        "during the far-range phase":          "across Phases 1–4",
+        "during the close-range phase":        "across Phases 5–9",
+        "during the far-range approach":       "during the Phases 1–4 approach",
+        "during the close-range approach":     "during the Phases 5–9 approach",
+        "compared to the far-range phase":     "compared to Phases 1–4",
+        "compared to the close-range phase":   "compared to Phases 5–9",
+        "at far range":                        "across Phases 1–4",
+        "at close range":                      "across Phases 5–9",
+        "in the far range":                    "across Phases 1–4",
+        "in the close range":                  "across Phases 5–9",
+        # Generic forms (catch-alls)
+        "the far-range phase":   "Phases 1–4",
+        "the close-range phase": "Phases 5–9",
+        "Far-range phase":       "Phases 1–4",
+        "Close-range phase":     "Phases 5–9",
+        "far-range phase":       "Phases 1–4",
+        "close-range phase":     "Phases 5–9",
+        "Far-range":             "Phases 1–4",
+        "Close-range":           "Phases 5–9",
+        "far-range":             "Phases 1–4",
+        "close-range":           "Phases 5–9",
+        "Far range":             "Phases 1–4",
+        "Close range":           "Phases 5–9",
+        " far range":            " Phases 1–4",
+        " close range":          " Phases 5–9",
+        "far range":             "Phases 1–4",
+        "close range":           "Phases 5–9",
+    }
+    _bulk_replace_runs(doc, mapping)
+
     # ── 6. Insert figures after Section 2 ────────────────────────────────────
     print("  Inserting Section 2 figures...")
     sec2_last = _find_para(doc, "An important property of the 90°")
     if sec2_last:
         ref = sec2_last._element
         ref = _add_centered_picture(doc, ref, IMG["fig1a"], 6.2,
-            "Figure 1a — Earth–Target angular separation, far-range phases "
-            "(Phase 1 – Station-keeping through Phase 4 – Accelerated approach). "
+            "Figure 1a — Earth–Target angular separation, Phases 1–4 "
+            "(−60 to −5 km, Station-keeping through Accelerated approach). "
             "Separation is tightly bounded near 90° throughout.")
         ref = _add_centered_picture(doc, ref, IMG["fig1b"], 6.2,
-            "Figure 1b — Earth–Target angular separation, close-range phases "
-            "(Phase 5 – Station-keeping through Phase 9 – Station-keeping). "
-            "Large oscillations with 90° crossings every ≈11.7 h (mean half-period).")
+            "Figure 1b — Earth–Target angular separation, Phases 5–9 "
+            "(−5 to +1 km, Station-keeping through Fly-by). Large oscillations "
+            "with 90° crossings every ≈11.7 h (mean half-period).")
 
     # ── 7. Insert figures after Section 3.2 ──────────────────────────────────
     print("  Inserting Section 3.2 figure...")
     sec32_last = _find_para(doc, "Propulsion context: 72 PPS")
     if sec32_last:
         ref = _add_centered_picture(doc, sec32_last._element, IMG["feasibility_far"], 6.2,
-            "Figure 2 — Pointing feasibility, far-range phases (Phase 1–4). "
+            "Figure 2 — Pointing feasibility, Phases 1–4 (−60 to −5 km). "
             "Mode 1 antenna error (red) remains within the X-band 4.5° half-cone "
             "for 92.7% of epochs. Mode 2 achieves 0% feasibility.")
 
@@ -238,7 +302,7 @@ def update():
     sec33_last = _find_para(doc, "RCS manoeuvre context: 44 RCS")
     if sec33_last:
         ref = _add_centered_picture(doc, sec33_last._element, IMG["feasibility_close"], 6.2,
-            "Figure 3 — Pointing feasibility, close-range phases (Phase 5–9). "
+            "Figure 3 — Pointing feasibility, Phases 5–9 (−5 to +1 km). "
             "Feasibility drops to 15.5% within the X-band cone; the oscillation "
             "period of ≈23.4 h exceeds the 6-hour ConOps window interval.")
 
@@ -248,8 +312,8 @@ def update():
     if sec4_last:
         ref = _add_centered_picture(doc, sec4_last._element, IMG["slew"], 6.5,
             "Figure 4 — Eigenaxis slew cost from Mode 1 (blue) and Mode 2 (red) "
-            "into the combined Earth+Target attitude. Left: far-range phases (Phase 1–4); "
-            "Right: close-range phases (Phase 5–9). Mode 1 is cheaper for 57.1% of epochs.")
+            "into the combined Earth+Target attitude. Left: Phases 1–4 (−60 to −5 km); "
+            "Right: Phases 5–9 (−5 to +1 km). Mode 1 is cheaper for 57.1% of epochs.")
 
     # ── 10. Insert figures after Section 5.1 ─────────────────────────────────
     print("  Inserting Section 5.1 figures...")
@@ -257,16 +321,16 @@ def update():
     if sec51_last:
         ref = sec51_last._element
         ref = _add_centered_picture(doc, ref, IMG["thermal_far"], 6.2,
-            "Figure 5a — Thermal constraints, far-range phases (Phase 1–4). "
-            "Top: Camera (+Z, 30° exclusion). Middle: SPEC_CAM (+Z, 3.75° exclusion). "
+            "Figure 5a — Thermal constraints, Phases 1–4 (−60 to −5 km). "
+            "Top: Camera/NAC (+Z, 30° exclusion). Middle: Telescope (+Z, 3.75° exclusion). "
             "Bottom: STR (+X, 35° exclusion). Amber/red spans mark ≤5 min / >5 min "
-            "SPEC_CAM violations respectively.")
+            "Telescope violations respectively.")
         ref = _add_centered_picture(doc, ref, IMG["thermal_close"], 6.2,
-            "Figure 5b — Thermal constraints, close-range phases (Phase 5–9). "
-            "Mode 1 SPEC_CAM violations drop to zero in the close range.")
+            "Figure 5b — Thermal constraints, Phases 5–9 (−5 to +1 km). "
+            "Mode 1 Telescope violations drop to zero across Phases 5–9.")
 
-    # ── 11. Add SPEC_CAM section 5.3 before old 5.3 (now 5.4) ───────────────
-    print("  Adding SPEC_CAM section 5.3...")
+    # ── 11. Add Telescope section 5.3 before old 5.3 (now 5.4) ──────────────
+    print("  Adding Telescope section 5.3...")
     # Insert before the (now renumbered) 5.4 heading
     h54 = _find_para(doc, "5.4 Mode selection")
     if h54:
@@ -278,39 +342,40 @@ def update():
             ref = h54._element.getprevious()
 
         ref = _add_heading_after(doc, ref,
-            "5.3 SPEC_CAM (Triscape100) sun exclusion (+Z axis, 3.75° half-cone)", level=2)
+            "5.3 Telescope sun exclusion (+Z axis, 3.75° half-cone)", level=2)
 
         ref = _add_para_after(doc, ref,
-            "The SPEC_CAM spectral imager (Triscape100) is co-boresighted with the "
-            "camera on the +Z body axis. Its sun exclusion half-cone is 3.75° with a "
-            "hard operational constraint of no more than 5 minutes of continuous solar "
-            "exposure within the exclusion cone.")
+            "The Telescope replaces the WAC and is co-boresighted with the NAC on the "
+            "+Z body axis. Its sun exclusion half-cone is 3.75° with a hard operational "
+            "constraint of no more than 5 minutes of continuous solar exposure within "
+            "the exclusion cone. Telescope power consumption matches the NAC (5 W idle, "
+            "8 W active).")
 
         ref = _add_para_after(doc, ref,
-            "Far-range phases (Phase 1 – Station-keeping through Phase 4 – Accelerated "
-            "approach): Mode 1 records 1.98% violation epochs with 15 continuous events "
-            "exceeding the 5-minute limit, the longest lasting 35 minutes — approximately "
-            "7× the allowed maximum. Mode 2 is worse, with 4.10% violation and 30 events "
+            "Phases 1–4 (−60 to −5 km, Station-keeping through Accelerated approach): "
+            "Mode 1 records 1.98% violation epochs with 15 continuous events exceeding "
+            "the 5-minute limit, the longest lasting 35 minutes — approximately 7× the "
+            "allowed maximum. Mode 2 is worse, with 4.10% violation and 30 events "
             "exceeding 5 minutes (longest: 30 minutes). These violations recur at the "
             "GEO synodic period as the +Z boresight sweeps through the solar exclusion "
             "cone.")
 
         ref = _add_para_after(doc, ref,
-            "Close-range phases (Phase 5 – Station-keeping through Phase 9 – "
+            "Phases 5–9 (−5 to +1 km, Station-keeping through Fly-by and final "
             "Station-keeping): Mode 1 records zero violations. As the along-track "
             "separation closes, the +Z target boresight progressively separates from "
-            "the Sun direction, providing complete SPEC_CAM thermal compliance. Mode 2 "
+            "the Sun direction, providing complete Telescope thermal compliance. Mode 2 "
             "retains 4.21% violation with 16 events exceeding 5 minutes (longest: "
             "30 minutes).")
 
         ref = _add_para_after(doc, ref,
-            "Operational implication: Mode 1 in the close-range phases is fully "
-            "compliant with the Triscape100 sun exclusion constraint. In the far-range "
-            "phases, Mode 1 produces intermittent violations driven by the GEO synodic "
-            "geometry. The 35-minute worst-case event should be reviewed by the "
-            "instrument team against the Triscape100 thermal qualification envelope. "
-            "Operator scheduling of observation windows to avoid known violation epochs "
-            "in Phase 2 – Approach and Phase 4 – Accelerated approach is recommended.")
+            "Operational implication: Mode 1 across Phases 5–9 is fully compliant with "
+            "the Telescope sun exclusion constraint. Across Phases 1–4, Mode 1 produces "
+            "intermittent violations driven by the GEO synodic geometry. The 35-minute "
+            "worst-case event should be reviewed by the instrument team against the "
+            "Telescope thermal qualification envelope. Operator scheduling of observation "
+            "windows to avoid known violation epochs in Phase 2 – Approach and "
+            "Phase 4 – Accelerated approach is recommended.")
 
     # ── 12. Add Power Budget section 6 before old Conclusion (now 7) ─────────
     print("  Adding Power Budget section 6...")
@@ -335,39 +400,43 @@ def update():
             "eclipse periods occur across all phases, consistent with the mission epoch "
             "near the September 2028 equinox (308 eclipse epochs at 300-second timestep "
             "resolution over the 23-day mission). Mode 1 (Target+Sun) achieves a mean "
-            "solar generation of 219 W over the full timeline. The secondary "
+            "solar generation of 199 W over the full timeline. The secondary "
             "Sun-optimisation constraint keeps the SAD well-oriented in most epochs.")
 
         ref = _add_heading_after(doc, ref, "6.2 Power balance by phase", level=2)
 
         ref = _add_para_after(doc, ref,
-            "Far-range phases (Phase 1 – Station-keeping through Phase 4 – Accelerated "
-            "approach, days 0–15.2): mean generation 218 W against mean consumption "
-            "274 W (Mode 1, baseline 260 W), yielding a mean deficit of approximately "
-            "−59 W. Surplus generation occurs in 42% of epochs. PPS firings "
-            "(72 events in Phases 1–4) create worst-case deficits of −575 W for the "
-            "duration of a firing event. Battery cycling is continuous but the "
-            "state-of-charge remains above the 20% depth-of-discharge limit throughout.")
+            "Phases 1–4 (−60 to −5 km, days 0–15.2): mean generation 218 W against "
+            "mean consumption 285 W (Mode 1, baseline 260 W + 16 W Camera+Telescope "
+            "in-window / 10 W out-of-window), yielding a mean deficit of approximately "
+            "−66 W. Surplus generation occurs in 40% of epochs. PPS firings (72 events "
+            "across Phases 1–4) drive the bus to ≈640 W (260 W baseline + 380 W PPU "
+            "average draw, per POELIS pps.average_power_consumption_max), producing "
+            "worst-case deficits of ≈−650 W when a firing coincides with eclipse. "
+            "Battery cycling is continuous and, in this nominal scenario, the integrated "
+            "state-of-charge drops to the 20% DoD floor during extended eclipse-plus-"
+            "firing combinations.")
 
         ref = _add_para_after(doc, ref,
-            "Close-range phases (Phase 5 – Station-keeping through Phase 9 – "
-            "Station-keeping, days 15.2–23.2): mean generation drops to 162 W as eclipse "
-            "duration increases near equinox. The mean deficit widens to −185 W. "
-            "Battery state-of-charge approaches the 20% DoD floor in the final days "
-            "of Phase 8 – Fly-by and Phase 9 – Station-keeping. RCS manoeuvres "
-            "(44 events, exclusive to Phases 5–9) contribute short consumption spikes "
-            "that are small relative to eclipse-driven deficits.")
+            "Phases 5–9 (−5 to +1 km, days 15.2–23.2): mean generation drops to 162 W "
+            "as eclipse duration increases near equinox; mean consumption is 271 W, "
+            "yielding a mean deficit of −110 W. Surplus generation occurs in only 21% "
+            "of epochs. Battery state-of-charge stays at or near the 20% DoD floor "
+            "through much of Phase 8 – Fly-by and Phase 9 – Station-keeping. RCS "
+            "manoeuvres (44 events, exclusive to Phases 5–9) contribute short "
+            "consumption spikes that are small relative to eclipse-driven deficits.")
 
         ref = _add_heading_after(doc, ref, "6.3 ConOps implications", level=2)
 
         bullets = [
             "PPS firings should be scheduled during eclipse-free periods where possible "
-            "to avoid compounding solar deficit with maximum bus consumption (570 W).",
+            "to avoid compounding solar deficit with peak bus consumption "
+            "(≈640 W: 260 W baseline + 380 W PPU average draw).",
             "The 550 Wh battery provides approximately 2 hours of autonomy at the "
             "260 W baseline under full eclipse conditions.",
-            "X-band transmitter power (TBC, estimated 40 W) and SPEC_CAM power (TBC) "
-            "will affect power margin during combined pointing windows — this section "
-            "will be updated once confirmed values are available.",
+            "X-band transmitter power (40 W) and Telescope power (5 W idle, 8 W active, "
+            "matching NAC) are applied during combined pointing windows. WAC has been "
+            "removed from the payload configuration.",
             "Phase 8 – Fly-by and Phase 9 – Station-keeping represent the tightest "
             "power margins of the mission. Battery management should be explicitly "
             "included in the Phase 8 ConOps.",
@@ -377,15 +446,15 @@ def update():
 
         # Figures
         ref = _add_centered_picture(doc, ref, IMG["power_far"], 6.2,
-            "Figure 6a — Power budget, far-range phases (Phase 1–4), Mode 1 (Target+Sun). "
+            "Figure 6a — Power budget, Phases 1–4 (−60 to −5 km), Mode 1 (Target+Sun). "
             "Top: solar generation with eclipse shading. Second: consumption stacked by "
             "subsystem. Third: net power balance (green = surplus, red = deficit). "
             "Bottom: battery state-of-charge.")
 
         ref = _add_centered_picture(doc, ref, IMG["power_close"], 6.2,
-            "Figure 6b — Power budget, close-range phases (Phase 5–9), Mode 1. "
+            "Figure 6b — Power budget, Phases 5–9 (−5 to +1 km), Mode 1. "
             "Generation decreases with increased eclipse depth. Battery SoC approaches "
-            "the 20% DoD limit in Phases 8–9.")
+            "the 20% DoD limit through Phases 8–9.")
 
     doc.save(DEST)
     print(f"\n  Saved: {DEST}")

@@ -210,8 +210,8 @@ def generate_slew_comparison_figure(
     gs = gridspec.GridSpec(1, 2, figure=fig, wspace=0.10)
 
     phases = [
-        ("Far Range  (−60 to −5 km)",  far_range),
-        ("Close Range  (−5 to +1 km)", close_range),
+        ("Phases 1–4 (−60 to −5 km)", far_range),
+        ("Phases 5–9 (−5 to +1 km)",  close_range),
     ]
 
     for col, (label, (lo, hi)) in enumerate(phases):
@@ -438,16 +438,16 @@ def main():
     far_range   = (0.0, phase_day)
     close_range = (phase_day, m1["days"][-1])
 
-    print("\nGenerating far-range figure...")
+    print("\nGenerating Phases 1–4 figure...")
     generate_figure(m1["days"], m1["ang"], slew_m1, slew_m2, ant_err,
                     m1["dlambda"], m1["man_rcs"], m1["man_pps"],
-                    far_range, "Far Range (−60 to −5 km)",
+                    far_range, "Phases 1–4 (−60 to −5 km)",
                     args.output_far, args.dpi)
 
-    print("Generating close-range figure...")
+    print("Generating Phases 5–9 figure...")
     generate_figure(m1["days"], m1["ang"], slew_m1, slew_m2, ant_err,
                     m1["dlambda"], m1["man_rcs"], m1["man_pps"],
-                    close_range, "Close Range (−5 to +1 km)",
+                    close_range, "Phases 5–9 (−5 to +1 km)",
                     args.output_close, args.dpi)
 
     print("Generating slew comparison figure...")

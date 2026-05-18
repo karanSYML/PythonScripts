@@ -460,6 +460,311 @@
       "first_accessed_at": 1778799950.5580032,
       "updated_at": "2026-03-10T10:36:59.022719",
       "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4dc5-74a5-9e85-10be8c276be9": {
+      "value": 380.0,
+      "name": "power_draw_thrust_level_3_max",
+      "first_accessed_at": 1779120215.8637455,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4e14-7cb7-abdd-a42b15393a74": {
+      "value": 1560.0,
+      "name": "minimum_off_time",
+      "first_accessed_at": 1779120215.8680089,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4e33-79cc-a429-97490bd3945f": {
+      "value": 30.0,
+      "name": "tid_threshold_max",
+      "first_accessed_at": 1779120215.8694534,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4e55-77a7-bbc7-3f60c27e900e": {
+      "value": 365.0,
+      "name": "power_draw_thrust_level_4_min",
+      "first_accessed_at": 1779120215.8707979,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4f37-70c9-a40b-18ab03bd72f7": {
+      "value": 365.0,
+      "name": "average_power_consumption_min",
+      "first_accessed_at": 1779120215.8720665,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4fb1-75fa-a08f-b0d05244efb5": {
+      "value": 8.0,
+      "name": "mass_propellat",
+      "first_accessed_at": 1779120215.873302,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5009-79d7-af36-1e1b6045f64c": {
+      "value": 380.0,
+      "name": "power_draw_thrust_level_5_max",
+      "first_accessed_at": 1779120215.8745828,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5031-792e-ab2e-250bbb270b45": {
+      "value": 1200.0,
+      "name": "isp_thrust_level_1",
+      "first_accessed_at": 1779120215.8758898,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5045-76a4-96c5-e9a5c9058ee0": {
+      "value": 365.0,
+      "name": "power_draw_thrust_level_5_min",
+      "first_accessed_at": 1779120215.8771951,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-504d-7fa4-a7ae-f794dac03e11": {
+      "value": 365.0,
+      "name": "power_draw_thrust_level_1_min",
+      "first_accessed_at": 1779120215.8785698,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-505c-7e3e-abe4-75ef1392f3f1": {
+      "value": 380.0,
+      "name": "average_power_consumption_max",
+      "first_accessed_at": 1779120215.8800614,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5079-79d3-936a-e360e15dfce2": {
+      "value": 10.0,
+      "name": "minimum_firing_time_thrust_level_3",
+      "first_accessed_at": 1779120215.8820126,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5110-7d2c-adb1-96e88d9fcc66": {
+      "value": 10.0,
+      "name": "minimum_firing_time_thrust_level_1",
+      "first_accessed_at": 1779120215.883386,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-51ff-7806-b3d2-1e6a01783249": {
+      "value": 15.5,
+      "name": "thrust_level_2",
+      "first_accessed_at": 1779120215.8847961,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5201-7ae8-b7d0-2f2798ec94d3": {
+      "value": 1200.0,
+      "name": "isp_thrust_level_4",
+      "first_accessed_at": 1779120215.8864923,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5245-7ba5-bcad-413ebb40b96f": {
+      "value": 1200.0,
+      "name": "isp_thrust_level_3",
+      "first_accessed_at": 1779120215.887947,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5268-7966-b67c-978cdba3b7a6": {
+      "value": 380.0,
+      "name": "power_draw_thrust_level_1_max",
+      "first_accessed_at": 1779120215.8893676,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-527b-7c36-be05-54594f9643a7": {
+      "value": 380.0,
+      "name": "power_draw_thrust_level_2_max",
+      "first_accessed_at": 1779120215.8908176,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5284-731d-a44c-9358d8212fd3": {
+      "value": 365.0,
+      "name": "power_draw_thrust_level_2_min",
+      "first_accessed_at": 1779120215.892282,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-529d-7d3b-86ec-7c9d5f4f1118": {
+      "value": 15.5,
+      "name": "thrust_level_5",
+      "first_accessed_at": 1779120215.893766,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-52c1-7e29-81fd-8188e4cded1e": {
+      "value": 15.5,
+      "name": "thrust_level_1",
+      "first_accessed_at": 1779120215.8952863,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-52cc-778d-83d9-f3dd9bce58c8": {
+      "value": 43.0,
+      "name": "see_threshold",
+      "first_accessed_at": 1779120215.8968005,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5310-7501-8ba6-7816cecd4a82": {
+      "value": 10.0,
+      "name": "minimum_firing_time_thrust_level_5",
+      "first_accessed_at": 1779120215.8983214,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-535f-78b8-b1b3-8b6c3558fd54": {
+      "value": 1200.0,
+      "name": "isp_thrust_level_2",
+      "first_accessed_at": 1779120215.8998628,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-536e-79d2-a21d-8261e9d70782": {
+      "value": 16.66,
+      "name": "dry_mass_min",
+      "first_accessed_at": 1779120215.9014533,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5379-7a5f-9274-9acf80cc1a8d": {
+      "value": 17.2,
+      "name": "dry_mass_max",
+      "first_accessed_at": 1779120215.9030821,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5385-72b1-b4b4-da997ad4fd3e": {
+      "value": 365.0,
+      "name": "power_draw_thrust_level_3_min",
+      "first_accessed_at": 1779120215.9046125,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-53e0-7d41-aa12-914c77265f75": {
+      "value": 10.0,
+      "name": "minimum_firing_time_thrust_level_2",
+      "first_accessed_at": 1779120215.9061863,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-53e2-73c3-8530-01927da01048": {
+      "value": 24.0,
+      "name": "tid_threshold_min",
+      "first_accessed_at": 1779120215.9077635,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-53e5-718e-a7d0-13ce096b8272": {
+      "value": 66.0,
+      "name": "plume_half_angle_3sigma",
+      "first_accessed_at": 1779120215.90939,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-53f9-78f6-9c48-b54aff6e9af0": {
+      "value": 10.0,
+      "name": "minimum_firing_time_thrust_level_4",
+      "first_accessed_at": 1779120215.9110258,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5416-767d-adb1-eb03dfed7e49": {
+      "value": 1200.0,
+      "name": "isp_thrust_level_5",
+      "first_accessed_at": 1779120215.9127305,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5442-769c-aa50-9483a7dfd2f5": {
+      "value": 15.5,
+      "name": "thrust_level_3",
+      "first_accessed_at": 1779120215.9144082,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-546a-7799-a6be-13ea37657f11": {
+      "value": 380.0,
+      "name": "power_draw_thrust_level_4_max",
+      "first_accessed_at": 1779120215.9160912,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-549b-777e-b5d5-76c72cce28b3": {
+      "value": 500.0,
+      "name": "thruster_heat_up_time",
+      "first_accessed_at": 1779120215.917784,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-54c0-789d-89a3-df12e45d4fe1": {
+      "value": 15.5,
+      "name": "thrust_level_4",
+      "first_accessed_at": 1779120215.9194987,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5344-7608-8a6e-6ae13b340791": {
+      "value": [
+        [
+          -0.002,
+          0.07,
+          -0.0603
+        ],
+        [
+          0.002,
+          -0.07,
+          -0.0603
+        ]
+      ],
+      "name": "cog_coordinates_spacecraft",
+      "first_accessed_at": 1779120215.9212072,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4e0f-7781-8128-beec4a812a44": {
+      "value": "TBC",
+      "name": "std_of_the_thrust_level_error",
+      "first_accessed_at": 1779120215.9229689,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4e1c-768b-9b01-e37ed33f2531": {
+      "value": "TBC",
+      "name": "std_of_yaw_angle_of_the_thruster_direction",
+      "first_accessed_at": 1779120215.9264872,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-4e75-7515-a1df-5d06872a90d5": {
+      "value": "TBD",
+      "name": "peak_power_consumption",
+      "first_accessed_at": 1779120215.9282362,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-5255-728c-85c9-ad16cfd2c496": {
+      "value": "17-51 X10-9",
+      "name": "swirl_torque",
+      "first_accessed_at": 1779120215.9300504,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
+    },
+    "019cd752-543f-7c05-97a3-2fd12ac90e3e": {
+      "value": "TBC",
+      "name": "std_of_pitch_angle_of_the_thruster_direction",
+      "first_accessed_at": 1779120215.9320266,
+      "updated_at": "2026-03-10T10:36:59.022719",
+      "updated_by": "francesco@infiniteorbits.io"
     }
   },
   "accessed_items": {
@@ -869,7 +1174,217 @@
       "name": "mass_min",
       "property_id": "019cd752-5297-718e-ab1a-9d8907cb33ee",
       "first_accessed_at": 1778799950.5563343
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.power_draw_thrust_level_3_max": {
+      "name": "power_draw_thrust_level_3_max",
+      "property_id": "019cd752-4dc5-74a5-9e85-10be8c276be9",
+      "first_accessed_at": 1779120215.8620086
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.minimum_off_time": {
+      "name": "minimum_off_time",
+      "property_id": "019cd752-4e14-7cb7-abdd-a42b15393a74",
+      "first_accessed_at": 1779120215.8672442
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.tid_threshold_max": {
+      "name": "tid_threshold_max",
+      "property_id": "019cd752-4e33-79cc-a429-97490bd3945f",
+      "first_accessed_at": 1779120215.8687558
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.power_draw_thrust_level_4_min": {
+      "name": "power_draw_thrust_level_4_min",
+      "property_id": "019cd752-4e55-77a7-bbc7-3f60c27e900e",
+      "first_accessed_at": 1779120215.8701897
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.average_power_consumption_min": {
+      "name": "average_power_consumption_min",
+      "property_id": "019cd752-4f37-70c9-a40b-18ab03bd72f7",
+      "first_accessed_at": 1779120215.8714411
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.mass_propellat": {
+      "name": "mass_propellat",
+      "property_id": "019cd752-4fb1-75fa-a08f-b0d05244efb5",
+      "first_accessed_at": 1779120215.8727036
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.power_draw_thrust_level_5_max": {
+      "name": "power_draw_thrust_level_5_max",
+      "property_id": "019cd752-5009-79d7-af36-1e1b6045f64c",
+      "first_accessed_at": 1779120215.8739798
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.isp_thrust_level_1": {
+      "name": "isp_thrust_level_1",
+      "property_id": "019cd752-5031-792e-ab2e-250bbb270b45",
+      "first_accessed_at": 1779120215.875268
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.power_draw_thrust_level_5_min": {
+      "name": "power_draw_thrust_level_5_min",
+      "property_id": "019cd752-5045-76a4-96c5-e9a5c9058ee0",
+      "first_accessed_at": 1779120215.8765578
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.power_draw_thrust_level_1_min": {
+      "name": "power_draw_thrust_level_1_min",
+      "property_id": "019cd752-504d-7fa4-a7ae-f794dac03e11",
+      "first_accessed_at": 1779120215.8778849
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.average_power_consumption_max": {
+      "name": "average_power_consumption_max",
+      "property_id": "019cd752-505c-7e3e-abe4-75ef1392f3f1",
+      "first_accessed_at": 1779120215.879268
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.minimum_firing_time_thrust_level_3": {
+      "name": "minimum_firing_time_thrust_level_3",
+      "property_id": "019cd752-5079-79d3-936a-e360e15dfce2",
+      "first_accessed_at": 1779120215.881349
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.minimum_firing_time_thrust_level_1": {
+      "name": "minimum_firing_time_thrust_level_1",
+      "property_id": "019cd752-5110-7d2c-adb1-96e88d9fcc66",
+      "first_accessed_at": 1779120215.882731
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.thrust_level_2": {
+      "name": "thrust_level_2",
+      "property_id": "019cd752-51ff-7806-b3d2-1e6a01783249",
+      "first_accessed_at": 1779120215.884126
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.isp_thrust_level_4": {
+      "name": "isp_thrust_level_4",
+      "property_id": "019cd752-5201-7ae8-b7d0-2f2798ec94d3",
+      "first_accessed_at": 1779120215.885653
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.isp_thrust_level_3": {
+      "name": "isp_thrust_level_3",
+      "property_id": "019cd752-5245-7ba5-bcad-413ebb40b96f",
+      "first_accessed_at": 1779120215.8872607
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.power_draw_thrust_level_1_max": {
+      "name": "power_draw_thrust_level_1_max",
+      "property_id": "019cd752-5268-7966-b67c-978cdba3b7a6",
+      "first_accessed_at": 1779120215.888681
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.power_draw_thrust_level_2_max": {
+      "name": "power_draw_thrust_level_2_max",
+      "property_id": "019cd752-527b-7c36-be05-54594f9643a7",
+      "first_accessed_at": 1779120215.8901286
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.power_draw_thrust_level_2_min": {
+      "name": "power_draw_thrust_level_2_min",
+      "property_id": "019cd752-5284-731d-a44c-9358d8212fd3",
+      "first_accessed_at": 1779120215.8915758
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.thrust_level_5": {
+      "name": "thrust_level_5",
+      "property_id": "019cd752-529d-7d3b-86ec-7c9d5f4f1118",
+      "first_accessed_at": 1779120215.8930612
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.thrust_level_1": {
+      "name": "thrust_level_1",
+      "property_id": "019cd752-52c1-7e29-81fd-8188e4cded1e",
+      "first_accessed_at": 1779120215.8945327
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.see_threshold": {
+      "name": "see_threshold",
+      "property_id": "019cd752-52cc-778d-83d9-f3dd9bce58c8",
+      "first_accessed_at": 1779120215.8960783
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.minimum_firing_time_thrust_level_5": {
+      "name": "minimum_firing_time_thrust_level_5",
+      "property_id": "019cd752-5310-7501-8ba6-7816cecd4a82",
+      "first_accessed_at": 1779120215.8975914
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.isp_thrust_level_2": {
+      "name": "isp_thrust_level_2",
+      "property_id": "019cd752-535f-78b8-b1b3-8b6c3558fd54",
+      "first_accessed_at": 1779120215.8991232
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.dry_mass_min": {
+      "name": "dry_mass_min",
+      "property_id": "019cd752-536e-79d2-a21d-8261e9d70782",
+      "first_accessed_at": 1779120215.9006636
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.dry_mass_max": {
+      "name": "dry_mass_max",
+      "property_id": "019cd752-5379-7a5f-9274-9acf80cc1a8d",
+      "first_accessed_at": 1779120215.9023356
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.power_draw_thrust_level_3_min": {
+      "name": "power_draw_thrust_level_3_min",
+      "property_id": "019cd752-5385-72b1-b4b4-da997ad4fd3e",
+      "first_accessed_at": 1779120215.9038742
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.minimum_firing_time_thrust_level_2": {
+      "name": "minimum_firing_time_thrust_level_2",
+      "property_id": "019cd752-53e0-7d41-aa12-914c77265f75",
+      "first_accessed_at": 1779120215.905432
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.tid_threshold_min": {
+      "name": "tid_threshold_min",
+      "property_id": "019cd752-53e2-73c3-8530-01927da01048",
+      "first_accessed_at": 1779120215.9070058
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.plume_half_angle_3sigma": {
+      "name": "plume_half_angle_3sigma",
+      "property_id": "019cd752-53e5-718e-a7d0-13ce096b8272",
+      "first_accessed_at": 1779120215.9086
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.minimum_firing_time_thrust_level_4": {
+      "name": "minimum_firing_time_thrust_level_4",
+      "property_id": "019cd752-53f9-78f6-9c48-b54aff6e9af0",
+      "first_accessed_at": 1779120215.9102414
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.isp_thrust_level_5": {
+      "name": "isp_thrust_level_5",
+      "property_id": "019cd752-5416-767d-adb1-eb03dfed7e49",
+      "first_accessed_at": 1779120215.9118817
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.thrust_level_3": {
+      "name": "thrust_level_3",
+      "property_id": "019cd752-5442-769c-aa50-9483a7dfd2f5",
+      "first_accessed_at": 1779120215.9135966
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.power_draw_thrust_level_4_max": {
+      "name": "power_draw_thrust_level_4_max",
+      "property_id": "019cd752-546a-7799-a6be-13ea37657f11",
+      "first_accessed_at": 1779120215.9152763
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.thruster_heat_up_time": {
+      "name": "thruster_heat_up_time",
+      "property_id": "019cd752-549b-777e-b5d5-76c72cce28b3",
+      "first_accessed_at": 1779120215.9169738
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.thrust_level_4": {
+      "name": "thrust_level_4",
+      "property_id": "019cd752-54c0-789d-89a3-df12e45d4fe1",
+      "first_accessed_at": 1779120215.918666
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.cog_coordinates_spacecraft": {
+      "name": "cog_coordinates_spacecraft",
+      "property_id": "019cd752-5344-7608-8a6e-6ae13b340791",
+      "first_accessed_at": 1779120215.920377
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.std_of_the_thrust_level_error": {
+      "name": "std_of_the_thrust_level_error",
+      "property_id": "019cd752-4e0f-7781-8128-beec4a812a44",
+      "first_accessed_at": 1779120215.922128
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.std_of_yaw_angle_of_the_thruster_direction": {
+      "name": "std_of_yaw_angle_of_the_thruster_direction",
+      "property_id": "019cd752-4e1c-768b-9b01-e37ed33f2531",
+      "first_accessed_at": 1779120215.9238958
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.peak_power_consumption": {
+      "name": "peak_power_consumption",
+      "property_id": "019cd752-4e75-7515-a1df-5d06872a90d5",
+      "first_accessed_at": 1779120215.92739
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.swirl_torque": {
+      "name": "swirl_torque",
+      "property_id": "019cd752-5255-728c-85c9-ad16cfd2c496",
+      "first_accessed_at": 1779120215.9291708
+    },
+    "og3.og003_technical_data.v6.system.propulsion.pps.std_of_pitch_angle_of_the_thruster_direction": {
+      "name": "std_of_pitch_angle_of_the_thruster_direction",
+      "property_id": "019cd752-543f-7c05-97a3-2fd12ac90e3e",
+      "first_accessed_at": 1779120215.9310641
     }
   },
-  "last_updated": 1778801659.8330317
+  "last_updated": 1779120215.9322119
 }
